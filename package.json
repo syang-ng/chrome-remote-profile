@@ -1,0 +1,17 @@
+{
+  "name": "chrome-remote-profile",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "run": "node app.js",
+    "clean": "rm -f ./profiles/*.json; echo '' > ./profiles/maps.txt;"
+  },
+  "author": "syang2forever",
+  "license": "MIT",
+  "dependencies": {
+    "async": "^2.6.0",
+    "chrome-remote-interface": "^0.25.5",
+    "commander": "^2.13.0"
+  }
+}
