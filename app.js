@@ -6,7 +6,7 @@ const CDP = require('chrome-remote-interface');
 
 const config = {
     src: 'urls.txt',
-    dst: './urls.txt.profiles',
+    dst: './profiles',
     host: '127.0.0.1',
     port: 9222
 }
@@ -31,9 +31,7 @@ function readUrlFile (mUrlFile) {
     let content = fs.readFileSync(mUrlFile, 'utf8');
     // 将文件按行拆成数组并存储
     content.split(/\r?\n/).forEach(function (url) {
-        if (url !== '') {
-            mUrls.push(url);
-        }
+        mUrls.push(url);
     });
 };
 
@@ -87,9 +85,9 @@ async function newTab(url, timeout=3000, delayTime=2000) {
             await delay(delayTime);
             await Profiler.start();
             await delay(timeout);
-            const data = await Profiler.stop();
-//            const {nodes} = profile;
-            writeJson(url, data);
+            const {profile} = await Profiler.stop();
+            const {nodes} = profile;
+            writeJson(url, nodes);
         }
         // close tab
         CDP.Close({
@@ -110,7 +108,7 @@ function main() {
     /* 命令行参数解析 */
     program.parse(process.argv);
     config.src = program.src || config.src;
-    config.dst = program.dst || util.format("%s.profiles", config.src);
+    config.dst = program.dst || config.dst;
     config.host = program.ip || config.host;
     config.port = program.port || config.port; 
     count = program.begin;
