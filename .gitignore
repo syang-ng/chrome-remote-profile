@@ -63,3 +63,4 @@ typings/
 # about the project
 urls.txt
 profiles/
+*profiles/
