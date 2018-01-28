@@ -61,6 +61,5 @@ typings/
 .next
 
 # about the project
-urls.txt
-profiles/
+*.txt
 *profiles/
