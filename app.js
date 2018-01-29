@@ -1,8 +1,9 @@
 const fs = require('fs');
 const util = require('util');
+const async = require('async');
 const program = require('commander');
-const CDP = require('chrome-remote-interface');
 const launcher = require('chrome-launcher');
+const CDP = require('chrome-remote-interface');
 
 // replace the Promise for high performance
 global.Promise = require("bluebird");
@@ -12,6 +13,17 @@ const { delay, formatDateTime } = require('./utils');
 const { recentId, fetchNewUrls, finishProfile } = require('./db');
 
 const writeFile = Promise.promisify(fs.writeFile);
+const mapLimit = function (array, limit, fn) {
+    return new Promise((resolve, reject)=>{
+        async.mapLimit(array, limit, fn, (err, results)=>{
+            if (err) {
+                reject(err);
+            } else {
+                resolve(results);
+            }
+        });
+    });
+}
 
 const mMapFile = 'maps.txt';
 let currentId = 0;
@@ -38,10 +50,9 @@ async function newTab(item, timeout, delayTime) {
     const url = item.url;
     const id = item.id;
     let total = 1;
-    let target = undefined;
     try {
         // new tab
-        target = await CDP.New({
+        var target = await CDP.New({
             host: config.host,
             port: config.port,
             url: url
@@ -98,7 +109,7 @@ async function newTab(item, timeout, delayTime) {
                 map.set(seq, num++);
                 seq++;
             }
-        }
+        }        
     } catch (err) {
         console.error(err);
     } finally {
@@ -108,7 +119,7 @@ async function newTab(item, timeout, delayTime) {
                 port: config.port,
                 id: target.id
             });
-            await finishProfile(id, total);
+            finishProfile(id, total);
         }
         if (client) {
             await client.close();
@@ -152,9 +163,11 @@ async function main() {
                 console.log('************ begin! ************');
                 await Promise.map(rows, async (item) => {
                     await newTab(item, program.timeout, program.waittime);
-                    console.log(item.id);
                 }, {concurrency: program.max});
-                const end = new Date().getTime();
+                /*await mapLimit(rows, program.max, async (item) => {
+                    await newTab(item, program.timeout, program.waittime);
+                    console.log(item.id);
+                });*/
                 console.log('************ end! ************');
                 currentId = newId + 1;
             } else {
