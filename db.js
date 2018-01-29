@@ -28,9 +28,10 @@ async function finishProfile(id, threads) {
     const timestamp = formatDateTime(new Date());
     const sql = `UPDATE \`profilerurl\` SET status=1, threads=${threads}, finishTimeStamp="${timestamp}" WHERE id = ${id}`;
     try {
-        const connection = await mysql.createConnection(dbConfig);
         console.log(sql);
+        const connection = await mysql.createConnection(dbConfig);
         await connection.execute(sql);
+        return true;
     } catch (err) {
         console.error(err);
         throw err;
