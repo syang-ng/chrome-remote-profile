@@ -23,6 +23,16 @@ formatDateTime = function (date) {
     return fDate + ' ' + fTime;
 };
 
+
+delay = function (timeout) {
+    return new Promise(function (resolve, reject) {
+        setTimeout(function () {
+            resolve();
+        }, timeout);
+    })
+};
+
+exports.delay = delay;
 exports.formatDate = formatDate;
 exports.formatTime = formatTime;
 exports.formatDateTime = formatDateTime;
