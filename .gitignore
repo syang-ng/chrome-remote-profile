@@ -63,3 +63,5 @@ typings/
 # about the project
 *.txt
 *profiles/
+
+test.js
