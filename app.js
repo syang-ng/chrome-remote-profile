@@ -50,9 +50,18 @@ async function newTab(item, timeout, delayTime) {
     const url = item.url;
     const id = item.id;
     let total = 1;
+<<<<<<< HEAD
+=======
+    let target = undefined;
+>>>>>>> 5608eb464771c1baff5fcbf86732d91d6736728a
     try {
+        console.log(2333)
         // new tab
+<<<<<<< HEAD
         var target = await CDP.New({
+=======
+        target = await CDP.New({
+>>>>>>> 5608eb464771c1baff5fcbf86732d91d6736728a
             host: config.host,
             port: config.port,
             url: url
@@ -64,6 +73,7 @@ async function newTab(item, timeout, delayTime) {
                 port: config.port,
                 target: target
             });
+<<<<<<< HEAD
             let num = 1;
             let seq = 1;
             const map = new Map();
@@ -113,13 +123,24 @@ async function newTab(item, timeout, delayTime) {
     } catch (err) {
         console.error(err);
     } finally {
+=======
+        }
+    } catch (err) {
+        console.error(err);
+    } finally {
+        console.log('finally')
+>>>>>>> 5608eb464771c1baff5fcbf86732d91d6736728a
         if (target) {
             CDP.Close({
                 host: config.host,
                 port: config.port,
                 id: target.id
             });
+<<<<<<< HEAD
             finishProfile(id, total);
+=======
+            await finishProfile(id, total);
+>>>>>>> 5608eb464771c1baff5fcbf86732d91d6736728a
         }
         if (client) {
             await client.close();
@@ -155,7 +176,12 @@ async function main() {
         await init();
         /* run as server */
         while (true) {
+            console.log(2333355667);
             const newId = await recentId();
+<<<<<<< HEAD
+=======
+            console.log(23334455);
+>>>>>>> 5608eb464771c1baff5fcbf86732d91d6736728a
             if (newId >= currentId) {
                 /* fecth data */
                 const rows = await fetchNewUrls(currentId, newId);
@@ -163,13 +189,21 @@ async function main() {
                 console.log('************ begin! ************');
                 await Promise.map(rows, async (item) => {
                     await newTab(item, program.timeout, program.waittime);
+<<<<<<< HEAD
+=======
+                    console.log(item.id);
+>>>>>>> 5608eb464771c1baff5fcbf86732d91d6736728a
                 }, {concurrency: program.max});
                 /*await mapLimit(rows, program.max, async (item) => {
                     await newTab(item, program.timeout, program.waittime);
                     console.log(item.id);
                 });*/
                 console.log('************ end! ************');
+<<<<<<< HEAD
                 currentId = newId + 1;
+=======
+                currentId = newId+1;
+>>>>>>> 5608eb464771c1baff5fcbf86732d91d6736728a
             } else {
                 /* delay for next request */
                 await delay(30000);
