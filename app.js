@@ -17,7 +17,7 @@ let currentId = 0;
 
 function writeJson(id, seq, data) {
     const path = util.format('%s/%d_%d.json', config.dst, id, seq);
-    return writeFile(path, JSON.stringify(data, null));
+    return writeFile(path, JSON.stringify(data));
 };
 
 program
@@ -75,6 +75,7 @@ async function newTab(item, timeout, delayTime) {
                 }
             });
             await delay(delayTime);
+            await Profiler.setSamplingInterval({interval: 100});
             await Profiler.start();
             await delay(timeout);
             const {profile} = await Profiler.stop();
@@ -88,6 +89,11 @@ async function newTab(item, timeout, delayTime) {
                     message: JSON.stringify({id: seq, method:"Profiler.enable"}),
                     sessionId: sessionId
                 });                  
+                seq++;
+		        await Target.sendMessageToTarget({
+                    message: JSON.stringify({id: seq, method:"Profiler.setSamplingInterval", params:{interval:100}}),
+                    sessionId: sessionId
+                });           
                 seq++;
                 await Target.sendMessageToTarget({
                     message: JSON.stringify({id: seq, method:"Profiler.start"}),
@@ -128,6 +134,7 @@ function init() {
     config.host = program.ip;
     config.port = program.port; 
     currentId = parseInt(program.begin);
+    program.max = parseInt(program.max);
 
     /* 并发执行 提高效率 */
     return Promise.all([
@@ -152,6 +159,7 @@ async function main() {
             let newId;      
             if (program.end) {
                 newId = parseInt(program.end);
+                program.end = undefined;
             } else {
                 newId = await recentId();                
             }
@@ -161,13 +169,13 @@ async function main() {
                 /* run */
                 console.log('************ begin! ************');
                 const begintime = Date.now();
-                await Promise.map(rows, async (item) => {
+                await Promise.map(rows, async (item, index) => {
+                    if (index < program.max) {
+                        console.log(index);
+                        await delay(program.waittime/program.max*index);
+                    }
                     await newTab(item, program.timeout, program.waittime);
                 }, {concurrency: program.max});
-                /*await mapLimit(rows, program.max, async (item) => {
-                    await newTab(item, program.timeout, program.waittime);
-                    console.log(item.id);
-                });*/
                 const endtime = Date.now();                
                 console.log('************ end! ************');
                 console.log('the task run: %ds', (endtime-begintime)/1000);
