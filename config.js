@@ -6,9 +6,9 @@ exports.config = {
 };
 
 exports.dbConfig = {
-    host: 'localhost',
+    host: '10.131.229.156',
     port: 3306,
     user: 'root',
-    password: '',
-    database: 'profile'
+    password: '123654',
+    database: 'tracer'
 };

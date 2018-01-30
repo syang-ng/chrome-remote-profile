@@ -58,4 +58,25 @@ const urls = ["http://jishutx.cn/post/148.html", "http://10.131.255.32/homepage.
     for(let url of urls) {
         await newTab(url, 10000, 10000);
     }
-})();
+});
+
+function format (url) {
+    return `INSERT INTO \`profilerurl\` (url, status) VALUES ("${url}", 0);`;
+}
+
+l = ["http://balkanmp3.ba",
+"http://geomovie.ge",
+"https://www.spazioauto.it",
+"https://www.cramindia.com/en/list/b/",
+"https://buyitmarketplace.ca",
+"http://listmoola.com",
+"https://www.c2i-revision.fr",
+"http://kangaviralsolomails.com",
+"https://dragonballzpolo.blogspot.com",
+"http://www.magunga.com",
+"http://www.adzbux.com/promote20.php?ref=hawarysam"]
+
+
+l.forEach((url)=>{
+    console.log(format(url));
+})

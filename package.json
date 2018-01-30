@@ -14,11 +14,11 @@
   "author": "syang2forever",
   "license": "MIT",
   "dependencies": {
-    "async": "^2.6.0",
     "bluebird": "^3.5.1",
     "chrome-launcher": "^0.10.2",
     "chrome-remote-interface": "^0.25.5",
     "commander": "^2.13.0",
+    "mysql": "^2.15.0",
     "mysql2": "^1.5.1"
   }
 }

@@ -9,7 +9,7 @@ global.Promise = require("bluebird");
 
 const { config } = require('./config');
 const { delay, formatDateTime } = require('./utils');
-const { recentId, fetchNewUrls, finishProfile } = require('./db');
+const { createPool, endPool, recentId, fetchNewUrls, finishProfile } = require('./db');
 
 const writeFile = Promise.promisify(fs.writeFile);
 
@@ -29,7 +29,7 @@ program
     .option('-W --waittime <time>', 'the delay time to wait for website loading', 12500)
     .option('-M --max <conn>', 'the maximum tab at the same time', 5)
     .option('-B --begin <index>', 'the index of url to begin', 0)
-    .option('-E --end <index>', '', undefined);
+    .option('-E --end <index>', 'the index of url to end', undefined);
 
 /* profile the special url with new tab */
 async function newTab(item, timeout, delayTime) {
@@ -136,6 +136,9 @@ function init() {
     currentId = parseInt(program.begin);
     program.max = parseInt(program.max);
 
+    /* mysql 线程池创建 */
+    createPool(program.max*3);
+
     /* 并发执行 提高效率 */
     return Promise.all([
         /* 检查目的文件夹是否存在 */        
@@ -174,7 +177,10 @@ async function main() {
                         console.log(index);
                         await delay(program.waittime/program.max*index);
                     }
-                    await newTab(item, program.timeout, program.waittime);
+                    await Promise.race([
+                        newTab(item, program.timeout, program.waittime),
+                        delay(program.waittime*2+program.timeout) // 确保资源释放
+                    ]);
                 }, {concurrency: program.max});
                 const endtime = Date.now();                
                 console.log('************ end! ************');
@@ -188,8 +194,13 @@ async function main() {
     } catch (err) {
         console.error(err);
     } finally {
+        endPool();        
         process.exit();                
     }
 }
+
+process.on("uncatchException", function(err) {
+    console.error(err);
+});
 
 main();

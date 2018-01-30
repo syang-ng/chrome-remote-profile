@@ -65,3 +65,5 @@ typings/
 *profiles/
 
 test.js
+test*
+*.old.*
