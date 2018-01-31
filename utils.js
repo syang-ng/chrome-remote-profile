@@ -1,3 +1,4 @@
+/* 日期格式化 */
 formatDate = function (date) {
     const y = date.getFullYear();
     let m = date.getMonth() + 1;
@@ -7,6 +8,7 @@ formatDate = function (date) {
     return y + '-' + m + '-' + d;
 };
 
+/* 时间格式化 */
 formatTime = function (date) {
     let h = date.getHours();
     h = h < 10 ? '0' + h : h;
@@ -17,18 +19,19 @@ formatTime = function (date) {
     return h + ':' + m + ':' + s;
 };
 
+/* 日期时间格式化 */
 formatDateTime = function (date) {
     const fDate = formatDate(date);
     const fTime = formatTime(date);
     return fDate + ' ' + fTime;
 };
 
-
+/* 等待 xx 时间 */
 delay = function (timeout) {
     return new Promise(function (resolve, reject) {
         setTimeout(function () {
             resolve();
-        }, timeout);
+        }, timeout*1000);
     })
 };
 

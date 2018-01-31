@@ -10,7 +10,7 @@ let checkTime = 30;
 let forever = false;
 
 const config = {
-    host: 'localhost',
+    host: '127.0.0.1',
     port: 9222
 }
 
@@ -19,11 +19,17 @@ program
     .option('-I --ip <host>', 'your chrome host ip', config.host)
     .option('-P --port <port>', 'your chrome debug port', config.port)
     .option('-F --forever <bool>', 'forever run')
-    .option('-A --aliveTime <time>', 'the max time of a tab alive', parseFloat, aliveTime)
-    .option('-C --checkTime <time>', 'the delay time to wait for website loading', parseFloat, checkTime);
+    .option('-A --aliveTime <time>', 'the max time of a tab alive', aliveTime)
+    .option('-C --checkTime <time>', 'the delay time to wait for website loading', checkTime);
 
 const whiteList = ['chrome://newtab/', 'chrome-extension'];
 
+/**
+ * 检查元素是否在相应数组中
+ * @param {Integer} i - 待检查的元素.
+ * @param {Array} array - 待遍历的数组.
+ * @return {Boolean} - 检查的结果.
+ */
 function isInList(i, array) {
     for(let item of array) {
         if (i.startsWith(item)) {
@@ -33,28 +39,39 @@ function isInList(i, array) {
     return false;
 }
 
+/**
+ * 检查 Url 是否在白名单中
+ * @param {string} targetUrl - 待检查的 Url.
+ * @return {Boolean} - 检查的结果.
+ */
 function isInWhiteList(targetUrl) {
     return isInList(targetUrl, whiteList);
 }
 
+/* initial part */
 function init() {
     program.parse(process.argv);
     forever = program.forever?true:false;
-    aliveTime = program.aliveTime;
-    checkTime = program.checkTime;
+    aliveTime = parseFloat(program.aliveTime);
+    checkTime = parseFloat(program.checkTime);
     config.host = program.ip;
-    config.port = program.port;
+    config.port = parseInt(program.port);
 
     console.log("Daemon Server run at %s", formatDateTime(new Date()));
 }
 
+/* main part */
 async function main() {
     init();
     do {
-        await delay(checkTime*1000);
+        await delay(checkTime);
         try {
             const ids = [];
-            const targets = await CDP.List(config);
+            const targets = await CDP.List({
+                host: config.host,
+                port: config.port
+            });
+
             for(let target of targets) {
                 ids.push(target.id);
                 if (target.type !== 'page' || isInWhiteList(target.url)) {
@@ -63,7 +80,11 @@ async function main() {
                 const count = maps.get(target.id) + 1 || 1;
                 if (count * checkTime >= aliveTime) {
                     maps.delete(target.id);
-                    await CDP.Close(target);
+                    await CDP.Close({
+                        host: config.host,
+                        port: config.port,
+                        id: target.id
+                    });
                 } else {
                     maps.set(target.id, count);
                 }

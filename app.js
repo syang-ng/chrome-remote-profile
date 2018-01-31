@@ -7,14 +7,21 @@ const CDP = require('chrome-remote-interface');
 // replace the Promise for high performance
 global.Promise = require("bluebird");
 
+const DB = require('./db');
 const { config } = require('./config');
 const { delay, formatDateTime } = require('./utils');
-const { createPool, endPool, recentId, fetchNewUrls, finishProfile } = require('./db');
 
 const writeFile = Promise.promisify(fs.writeFile);
 
+let db;
 let currentId = 0;
 
+/**
+ * 封装了 json 的写入
+ * @param {number} id   - url 在数据库中对应的 id.
+ * @param {number} seq  - 该文件属于同一 url 的第几个文件.
+ * @param {string} data - 需要写入的 json 数据. 
+ */
 function writeJson(id, seq, data) {
     const path = util.format('%s/%d_%d.json', config.dst, id, seq);
     return writeFile(path, JSON.stringify(data));
@@ -25,11 +32,13 @@ program
     .option('-D --dst <path>', 'your output dst dir', './profiles')
     .option('-I --ip <host>', 'your chrome host ip', config.host)
     .option('-P --port <port>', 'your chrome debug port', config.port)
-    .option('-T --timeout <time>', 'the time to profile', 12500)
-    .option('-W --waittime <time>', 'the delay time to wait for website loading', 12500)
+    .option('-T --timeout <time>', 'the time to profile', 12.5)
+    .option('-W --waittime <time>', 'the delay time to wait for website loading', 12.5)
     .option('-M --max <conn>', 'the maximum tab at the same time', 5)
     .option('-B --begin <index>', 'the index of url to begin', 0)
-    .option('-E --end <index>', 'the index of url to end', undefined);
+    .option('-E --end <index>', 'the index of url to end', undefined)
+    .option('-C --cover <boolean>', 'whether to cover the data')
+    .option('-F --forever <yes/no>', 'whether to run forever')
 
 /* profile the special url with new tab */
 async function newTab(item, timeout, delayTime) {
@@ -59,7 +68,6 @@ async function newTab(item, timeout, delayTime) {
             await Target.setAutoAttach({autoAttach: true, waitForDebuggerOnStart: false});
             Target.attachedToTarget(function (obj) {
                 if (obj.sessionId !== null) {
-                    console.log(obj.sessionId);
                     queue.push(obj.sessionId);
                 }
             });
@@ -70,16 +78,18 @@ async function newTab(item, timeout, delayTime) {
                     writeJson(id, total, message.result.profile);
                     total++;
                     if (writeTotal !== undefined && total > writeTotal) {
-                        finishProfile(id, total);                        
+                        db.finishProfile(id, total);                        
                     }
                 }
             });
             await delay(delayTime);
+            /* profile the main thread */
             await Profiler.setSamplingInterval({interval: 100});
             await Profiler.start();
             await delay(timeout);
             const {profile} = await Profiler.stop();
             writeJson(id, 0, profile);
+            /* profile the other thread */
             let sessionId;
             await Promise.map(queue, async function(sessionId) {
                 if (sessionId === undefined) {
@@ -119,7 +129,7 @@ async function newTab(item, timeout, delayTime) {
                 id: target.id
             });
             var writeTotal = total;
-            finishProfile(id, total);
+            db.finishProfile(id, total);
         }
         if (client) {
             await client.close();
@@ -135,9 +145,8 @@ function init() {
     config.port = program.port; 
     currentId = parseInt(program.begin);
     program.max = parseInt(program.max);
-
-    /* mysql 线程池创建 */
-    createPool(program.max*3);
+    cover = program.cover?true:false;
+    forever = program.forever?true:false;
 
     /* 并发执行 提高效率 */
     return Promise.all([
@@ -148,7 +157,12 @@ function init() {
             }
             resolve();
         }),
-        /* 启动 chrome */
+        /* mysql 数据库对象创建 */        
+        new Promise((resolve)=>{
+            db = new DB(program.max*3, cover);
+            resolve();
+        }),
+        /* 启动 Chrome */
         launcher.launch({port: config.port})
     ]);
 }
@@ -158,43 +172,41 @@ async function main() {
         /* initial */
         await init();
         /* run as server */
-        while (true) {
+        do {
             let newId;      
             if (program.end) {
                 newId = parseInt(program.end);
                 program.end = undefined;
             } else {
-                newId = await recentId();                
+                newId = await db.recentId();
             }
             if (newId >= currentId) {
                 /* fecth data */
-                const rows = await fetchNewUrls(currentId, newId);
+                const rows = await db.fetchNewUrls(currentId, newId);
                 /* run */
                 console.log('************ begin! ************');
-                const begintime = Date.now();
+                console.log("App run at %s", formatDateTime(new Date()));
                 await Promise.map(rows, async (item, index) => {
                     if (index < program.max) {
-                        console.log(index);
                         await delay(program.waittime/program.max*index);
                     }
                     await Promise.race([
                         newTab(item, program.timeout, program.waittime),
-                        delay(program.waittime*2+program.timeout) // 确保资源释放
+                        delay(program.waittime*2+program.timeout*5) // 确保资源释放
                     ]);
                 }, {concurrency: program.max});
-                const endtime = Date.now();                
+                console.log("App stop at %s", formatDateTime(new Date()));
                 console.log('************ end! ************');
-                console.log('the task run: %ds', (endtime-begintime)/1000);
                 currentId = newId + 1;
             } else {
                 /* delay for next request */
-                await delay(30000);
+                await delay(60);
             }
-        }
+        } while (forever);
     } catch (err) {
         console.error(err);
     } finally {
-        endPool();        
+        db.close();
         process.exit();                
     }
 }
