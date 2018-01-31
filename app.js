@@ -180,6 +180,9 @@ async function main() {
                 program.end = undefined;
             } else {
                 newId = await db.recentId();
+                if (newId - currentId > 200) {
+                    newId = currentId + 200;
+                }
             }
             if (newId >= currentId) {
                 /* fecth data */
