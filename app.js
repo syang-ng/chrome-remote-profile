@@ -15,6 +15,7 @@ const writeFile = Promise.promisify(fs.writeFile);
 
 let db;
 let currentId = 0;
+let forever = false;
 
 /**
  * 封装了 json 的写入
@@ -100,7 +101,7 @@ async function newTab(item, timeout, delayTime) {
                     sessionId: sessionId
                 });                  
                 seq++;
-		        await Target.sendMessageToTarget({
+                await Target.sendMessageToTarget({
                     message: JSON.stringify({id: seq, method:"Profiler.setSamplingInterval", params:{interval:100}}),
                     sessionId: sessionId
                 });           
@@ -145,7 +146,7 @@ function init() {
     config.port = program.port; 
     currentId = parseInt(program.begin);
     program.max = parseInt(program.max);
-    cover = program.cover?true:false;
+    const cover = program.cover?true:false;
     forever = program.forever?true:false;
 
     /* 并发执行 提高效率 */
