@@ -29,7 +29,7 @@ class DB {
      * @return {number} - 最新插入的 id.
      */
     async recentId() {
-        const condition = !this.cover?' WHERE status=0 ':' ';
+        const condition = !this.cover?' WHERE status is NULL ':' ';
         const sql = `SELECT id FROM \`profilerUrl\`${condition}ORDER BY id DESC LIMIT 1`;
         try {
             const [row, field] = await this.pool.query(sql);
@@ -51,7 +51,7 @@ class DB {
      * @return {Array} - 返回数据数组. 
      */
     async fetchNewUrls(id1, id2) {
-        const condition = !this.cover?' status=0 AND ':' ';
+        const condition = !this.cover?' status is NULL AND ':' ';
         const sql = `SELECT id, url FROM \`profilerUrl\` WHERE${condition}id BETWEEN ${id1} AND ${id2}`;
         try {
             const [row, field] = await this.pool.query(sql);
