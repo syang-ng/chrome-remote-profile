@@ -8,7 +8,7 @@ const CDP = require('chrome-remote-interface');
 global.Promise = require("bluebird");
 
 const DB = require('./db');
-const env = require('./env');
+const { env } = require('./env');
 const { config } = require('./config');
 const { delay, formatDateTime} = require('./utils');
 
@@ -162,7 +162,7 @@ function init() {
         }),
         /* mysql 数据库对象创建 */        
         new Promise((resolve)=>{
-            db = new DB(program.max*3);
+            db = new DB(program.num, 300);
             resolve();
         })
     ]);
