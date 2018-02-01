@@ -1,4 +1,5 @@
 const mysql = require('mysql2/promise');
+const redis = require('redis')
 
 const { dbConfig } = require('./config');
 const { formatDateTime } = require('./utils');
@@ -10,13 +11,28 @@ class DB {
      * @param {boolean} cover - 是否覆盖已处理数据项.
      * @param {object} config - 数据库配置.
      */
-    constructor (limit=30, cover=flase, config=dbConfig) {
+    constructor (redisLimit=8,limit=30, cover=false, config=dbConfig) {
         this.pool = mysql.createPool(
             Object.assign({
                 connectionLimit: limit
             }, dbConfig)
         );
+
         this.cover = cover; 
+        this.redisClient = redis.createClient(6379,'10.141.209.139');
+        this.redisFetches = [];
+
+        for (let i= 0; i < redisLimit; i++){
+            this.redisFetches.push(new Promise(resolve => {
+                this.redisClient.blpop('to_profile',1, function(error, data){
+                    if (error) {
+                        console.log('redis fetchNewUrls error : ',error);
+                    }
+                    resolve(data);
+                });
+            }));
+        }
+
     }
 
     /* 关闭数据库连接线程池 */    
@@ -52,8 +68,25 @@ class DB {
      * @return {Array} - 返回数据数组. 
      */
     async fetchNewUrls(id1, id2, limit) {
-        const condition = !this.cover?' status is NULL AND ':' ';
-        const limitSql = limit?`LIMIT ${limit}`:'';
+        let res = new Array();
+        await Promise.all(this.redisFetches)
+            .then(function(rows){
+                for(let k in rows){
+                    let strings = rows[k][1].split(',');
+                    res.push({
+                        'id':strings[0],
+                        'url':strings[1]
+                    });
+
+                }
+            });
+        return res;
+    }
+
+
+
+
+    /*
         const sql = `SELECT id, url FROM \`profilerUrl\` WHERE${condition}id BETWEEN ${id1} AND ${id2} ${limitSql}`;
         try {
             const [row, field] = await this.pool.query(sql);
@@ -63,6 +96,7 @@ class DB {
             throw err;
         }
     }
+    */
 
     /**
      * 完成 profile 后将数据写回数据库
@@ -83,5 +117,18 @@ class DB {
         }
     }
 }
+async function testRedis(){
+    try{
+        let db = new DB();
+        res = await db.fetchNewUrls();
+    }
+    catch(error){
+        console.log(error);
+    }
+    console.log(res[0]);
+    console.log(typeof res);
+    console.log(res.length);
+}
+testRedis();
 
 module.exports = DB;
