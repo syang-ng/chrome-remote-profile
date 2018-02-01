@@ -68,3 +68,5 @@ test.js
 test*
 *.old.*
 *vscode/
+
+env.js
