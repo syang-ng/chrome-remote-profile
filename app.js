@@ -8,6 +8,7 @@ const CDP = require('chrome-remote-interface');
 global.Promise = require("bluebird");
 
 const DB = require('./db');
+const env = require('./env');
 const { config } = require('./config');
 const { delay, formatDateTime} = require('./utils');
 
@@ -145,6 +146,10 @@ function init() {
     config.port = program.port;
     program.interval = parseInt(program.interval);
     program.num = parseInt(program.num);    
+
+    if(env==='old') {
+        config.chromeFlags = ['--no-sandbox'];
+    }
 
     /* 并发执行 提高效率 */
     return Promise.all([
