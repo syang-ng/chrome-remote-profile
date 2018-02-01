@@ -8,7 +8,7 @@ const CDP = require('chrome-remote-interface');
 global.Promise = require("bluebird");
 
 const DB = require('./db');
-const env = require('./env');
+const { env } = require('./env');
 const { config } = require('./config');
 const { delay, formatDateTime} = require('./utils');
 
