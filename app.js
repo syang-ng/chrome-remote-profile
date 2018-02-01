@@ -9,13 +9,11 @@ global.Promise = require("bluebird");
 
 const DB = require('./db');
 const { config } = require('./config');
-const { delay, formatDateTime } = require('./utils');
+const { delay, formatDateTime} = require('./utils');
 
 const writeFile = Promise.promisify(fs.writeFile);
 
 let db;
-let currentId = 0;
-let forever = false;
 
 /**
  * 封装了 json 的写入
@@ -31,18 +29,14 @@ function writeJson(id, seq, data) {
 program
     .version('1.0.0')
     .option('-D --dst <path>', 'your output dst dir', '/home/lancer/share/')
-    .option('-I --ip <host>', 'your chrome host ip', config.host)
     .option('-P --port <port>', 'your chrome debug port', config.port)
     .option('-T --timeout <time>', 'the time to profile', 10)
-    .option('-W --waittime <time>', 'the delay time to wait for website loading', 30)
+    .option('-W --waitTime <time>', 'the delay time to wait for website loading', 30)
     .option('-M --max <conn>', 'the maximum tab at the same time', 5)
-    .option('-B --begin <index>', 'the index of url to begin', 0)
-    .option('-E --end <index>', 'the index of url to end', undefined)
-    .option('-C --cover <boolean>', 'whether to cover the data')
-    .option('-F --forever <yes/no>', 'whether to run forever')
+    .option('-N --num <number>', 'the number of tab profiler per hour', 1800);
 
 /* profiler the special url with new tab */
-async function newTab(item, timeout, delayTime) {
+async function newTab(item, timeout, waitTime) {    
     const url = item.url;
     const id = item.id;
     let total = 1;
@@ -89,7 +83,7 @@ async function newTab(item, timeout, delayTime) {
                     }
                 }
             });
-            await delay(delayTime);
+            await delay(waitTime);
             /* profile the main thread */
             await Profiler.setSamplingInterval({interval: 100});
             await Profiler.start();
@@ -147,13 +141,10 @@ async function newTab(item, timeout, delayTime) {
 function init() {
     /* 命令行参数解析 */
     program.parse(process.argv);
-    config.dst = program.dst;    
-    config.host = program.ip;
-    config.port = program.port; 
-    currentId = parseInt(program.begin);
+    config.dst = program.dst;
+    config.port = program.port;
     program.max = parseInt(program.max);
-    const cover = program.cover?true:false;
-    forever = program.forever?true:false;
+    program.num = parseInt(program.num);    
 
     /* 并发执行 提高效率 */
     return Promise.all([
@@ -166,11 +157,9 @@ function init() {
         }),
         /* mysql 数据库对象创建 */        
         new Promise((resolve)=>{
-            db = new DB(program.max*3, cover);
+            db = new DB(program.max*3);
             resolve();
-        }),
-        /* 启动 Chrome */
-        launcher.launch({port: config.port})
+        })
     ]);
 }
 
@@ -178,39 +167,25 @@ async function main() {
     try {
         /* initial */
         await init();
+        const {num, timeout, waitTime} = program;
         /* run as server */
         do {
-            let newId;      
-            if (program.end) {
-                newId = parseInt(program.end);
-                program.end = undefined;
-            } else {
-                newId = await db.recentId();
+            /* start Chrome */
+            const chrome = await launcher.launch(config);
+            /* run */
+            console.log('************ begin! ************');
+            console.log("App run at %s", formatDateTime(new Date()));
+            const rows = await db.fetchNewUrls(num);
+            for (let row of rows) {
+                newTab(row, timeout, waitTime);
+                await delay(3600/num);
             }
-            if (newId >= currentId) {
-                /* fecth data */
-                const rows = await db.fetchNewUrls(currentId, newId);
-                const nextId = rows[rows.length-1].id + 1;
-                /* run */
-                console.log('************ begin! ************');
-                console.log("App run at %s", formatDateTime(new Date()));
-                await Promise.map(rows, async (item, index) => {
-                    if (index < program.max) {
-                        await delay(program.waittime/program.max*index);
-                    }
-                    await Promise.race([
-                        newTab(item, program.timeout, program.waittime),
-                        delay(program.waittime*2+program.timeout*5) // 确保资源释放
-                    ]);
-                }, {concurrency: program.max});
-                console.log("App stop at %s", formatDateTime(new Date()));
-                console.log('************ end! ************');
-                currentId = nextId;
-            } else {
-                /* delay for next request */
-                await delay(60);
-            }
-        } while (forever);
+            console.log("App stop at %s", formatDateTime(new Date()));
+            console.log('************ end! ************');
+            /* delay for kill Chrome */
+            await delay(60);
+            await chrome.kill();
+        } while (true);
     } catch (err) {
         console.error(err);
     } finally {

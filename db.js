@@ -11,7 +11,7 @@ class DB {
      * @param {boolean} cover - 是否覆盖已处理数据项.
      * @param {object} config - 数据库配置.
      */
-    constructor (redisLimit=8,limit=30, cover=false, config=dbConfig) {
+    constructor (redisLimit=8, limit=30, cover=false, config=dbConfig) {
         this.pool = mysql.createPool(
             Object.assign({
                 connectionLimit: limit
@@ -83,21 +83,6 @@ class DB {
         return res;
     }
 
-
-
-
-    /*
-        const sql = `SELECT id, url FROM \`profilerUrl\` WHERE${condition}id BETWEEN ${id1} AND ${id2} ${limitSql}`;
-        try {
-            const [row, field] = await this.pool.query(sql);
-            return row;
-        } catch (err) {
-            console.error(err);
-            throw err;
-        }
-    }
-    */
-
     /**
      * 完成 profile 后将数据写回数据库
      * @param {number} id - 对应 id.
@@ -117,6 +102,7 @@ class DB {
         }
     }
 }
+/*
 async function testRedis(){
     try{
         let db = new DB();
@@ -130,5 +116,5 @@ async function testRedis(){
     console.log(res.length);
 }
 testRedis();
-
+*/
 module.exports = DB;

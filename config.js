@@ -1,7 +1,8 @@
-/* app.js 运行配置 */
+/* Chrome 配置 */
 exports.config = {
     host: '127.0.0.1',
-    port: 9222
+    port: 9222,
+    chromePath: 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
 };
 
 /* 数据库配置 */
@@ -11,4 +12,10 @@ exports.dbConfig = {
     user: 'lancer',
     password: 'lancer',
     database: 'tracer'
+};
+
+/* redis 配置 */
+exports.redisConfig = {
+    host: '10.141.209.139',
+    port: 6379
 };
