@@ -41,7 +41,7 @@ program
     .option('-C --cover <boolean>', 'whether to cover the data')
     .option('-F --forever <yes/no>', 'whether to run forever')
 
-/* profile the special url with new tab */
+/* profiler the special url with new tab */
 async function newTab(item, timeout, delayTime) {
     const url = item.url;
     const id = item.id;
@@ -189,7 +189,8 @@ async function main() {
             }
             if (newId >= currentId) {
                 /* fecth data */
-                const rows = await db.fetchNewUrls(currentId, newId, program.max*50);
+                const rows = await db.fetchNewUrls(currentId, newId);
+                const nextId = rows[rows.length-1].id + 1;
                 /* run */
                 console.log('************ begin! ************');
                 console.log("App run at %s", formatDateTime(new Date()));
@@ -204,7 +205,7 @@ async function main() {
                 }, {concurrency: program.max});
                 console.log("App stop at %s", formatDateTime(new Date()));
                 console.log('************ end! ************');
-                currentId = newId + 1;
+                currentId = nextId;
             } else {
                 /* delay for next request */
                 await delay(60);
