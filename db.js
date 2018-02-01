@@ -48,11 +48,13 @@ class DB {
      * 获得指定 id 范围内的数据
      * @param {number} id1 - 起始 id.
      * @param {number} id2 - 结束 id.
+     * @param {number} limit - 范围限制.
      * @return {Array} - 返回数据数组. 
      */
-    async fetchNewUrls(id1, id2) {
+    async fetchNewUrls(id1, id2, limit) {
         const condition = !this.cover?' status is NULL AND ':' ';
-        const sql = `SELECT id, url FROM \`profilerUrl\` WHERE${condition}id BETWEEN ${id1} AND ${id2}`;
+        const limitSql = limit?`LIMIT ${limit}`:'';
+        const sql = `SELECT id, url FROM \`profilerUrl\` WHERE${condition}id BETWEEN ${id1} AND ${id2} ${limitSql}`;
         try {
             const [row, field] = await this.pool.query(sql);
             return row;

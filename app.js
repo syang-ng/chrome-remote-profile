@@ -30,7 +30,7 @@ function writeJson(id, seq, data) {
 
 program
     .version('1.0.0')
-    .option('-D --dst <path>', 'your output dst dir', './profiles')
+    .option('-D --dst <path>', 'your output dst dir', '/home/lancer/share/')
     .option('-I --ip <host>', 'your chrome host ip', config.host)
     .option('-P --port <port>', 'your chrome debug port', config.port)
     .option('-T --timeout <time>', 'the time to profile', 12.5)
@@ -48,7 +48,7 @@ async function newTab(item, timeout, delayTime) {
     let total = 1;
     try {
         // new tab
-        var target = await CDP.New({
+        const target = await CDP.New({
             host: config.host,
             port: config.port,
             url: url
@@ -60,7 +60,7 @@ async function newTab(item, timeout, delayTime) {
                 port: config.port,
                 target: target
             });
-            let num = 1;
+            let num = 0;
             let seq = 1;
             const map = new Map();
             const queue = new Array();
@@ -74,12 +74,18 @@ async function newTab(item, timeout, delayTime) {
             });
             Target.receivedMessageFromTarget(function(obj) {
                 const message = JSON.parse(obj.message);
-                const number = map.get(message.id);
-                if (number !== undefined && message.result.profile !== undefined) {
+                const sId = map.get(message.id);
+                if (sId !== undefined && message.result.profile !== undefined) {
                     writeJson(id, total, message.result.profile);
+                    num--;
                     total++;
-                    if (writeTotal !== undefined && total > writeTotal) {
-                        db.finishProfile(id, total);                        
+                    if (!num) {
+                        CDP.Close({
+                            host: config.host,
+                            port: config.port,
+                            id: target.id
+                        });
+                        db.finishProfile(id, total);
                     }
                 }
             });
@@ -116,22 +122,22 @@ async function newTab(item, timeout, delayTime) {
                     message: JSON.stringify({id: seq, method:"Profiler.stop"}),
                     sessionId: sessionId
                 });
-                map.set(seq, num++);
+                map.set(seq, sessionId);
+                num++;
                 seq++;
             }, {concurrency: 1});
+            if (!num) {
+                CDP.Close({
+                    host: config.host,
+                    port: config.port,
+                    id: target.id
+                });
+                db.finishProfile(id, total);
+            }
         }        
     } catch (err) {
         console.error(err);
     } finally {
-        if (target) {
-            CDP.Close({
-                host: config.host,
-                port: config.port,
-                id: target.id
-            });
-            var writeTotal = total;
-            db.finishProfile(id, total);
-        }
         if (client) {
             await client.close();
         }
@@ -180,13 +186,10 @@ async function main() {
                 program.end = undefined;
             } else {
                 newId = await db.recentId();
-                if (newId - currentId > 200) {
-                    newId = currentId + 200;
-                }
             }
             if (newId >= currentId) {
                 /* fecth data */
-                const rows = await db.fetchNewUrls(currentId, newId);
+                const rows = await db.fetchNewUrls(currentId, newId, program.max*50);
                 /* run */
                 console.log('************ begin! ************');
                 console.log("App run at %s", formatDateTime(new Date()));
