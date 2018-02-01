@@ -20,18 +20,7 @@ class DB {
 
         this.cover = cover; 
         this.redisClient = redis.createClient(6379,'10.141.209.139');
-        this.redisFetches = [];
 
-        for (let i= 0; i < redisLimit; i++){
-            this.redisFetches.push(new Promise(resolve => {
-                this.redisClient.blpop('to_profile',1, function(error, data){
-                    if (error) {
-                        console.log('redis fetchNewUrls error : ',error);
-                    }
-                    resolve(data);
-                });
-            }));
-        }
 
     }
 
@@ -67,9 +56,21 @@ class DB {
      * @param {number} limit - 范围限制.
      * @return {Array} - 返回数据数组. 
      */
-    async fetchNewUrls(id1, id2, limit) {
+    async fetchNewUrls(redisLimit=8) {
         let res = new Array();
-        await Promise.all(this.redisFetches)
+
+        let redisFetches = [];
+        for (let i= 0; i < redisLimit; i++){
+            redisFetches.push(new Promise(resolve => {
+                this.redisClient.blpop('to_profile',1, function(error, data){
+                    if (error) {
+                        console.log('redis fetchNewUrls error : ',error);
+                    }
+                    resolve(data);
+                });
+            }));
+        }
+        await Promise.all(redisFetches)
             .then(function(rows){
                 for(let k in rows){
                     let strings = rows[k][1].split(',');
@@ -102,19 +103,25 @@ class DB {
         }
     }
 }
-/*
+
 async function testRedis(){
+    let db;
     try{
-        let db = new DB();
-        res = await db.fetchNewUrls();
+        db = new DB();
     }
     catch(error){
         console.log(error);
     }
-    console.log(res[0]);
-    console.log(typeof res);
-    console.log(res.length);
+    for(let i = 0; i <3; i++){
+        res = await db.fetchNewUrls();
+        for(let e in res){
+
+        console.log(res[e]);
+        }
+        console.log(typeof res);
+        console.log(res.length);
+    }
 }
-testRedis();
-*/
+//testRedis();
+
 module.exports = DB;
