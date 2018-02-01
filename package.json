@@ -8,9 +8,8 @@
   },
   "main": "app.js",
   "scripts": {
-    "test": "node app.js -F y -C y -P 10086 -W 50 -M 30",
-    "dev": "node app.js -P 10086 -W 50 -M 30 -F y -C ys",
-    "clean": "rm -f ./profiles/*.json; echo '' > ./profiles/maps.txt;"
+    "test": "node app.js -P 12345 -W 50 -T 12.5 -I 2 -D ./profiles",
+    "dev": "node app.js"
   },
   "author": "syang2forever",
   "license": "MIT",

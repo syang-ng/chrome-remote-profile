@@ -1,8 +1,8 @@
 /* Chrome 配置 */
 exports.config = {
     host: '127.0.0.1',
-    port: 9222,
-    chromePath: 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
+    port: 10086,
+    chromePath: '/home/lancer/chrome-linux/chrome'
 };
 
 /* 数据库配置 */

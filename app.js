@@ -32,8 +32,8 @@ program
     .option('-P --port <port>', 'your chrome debug port', config.port)
     .option('-T --timeout <time>', 'the time to profile', 10)
     .option('-W --waitTime <time>', 'the delay time to wait for website loading', 30)
-    .option('-M --max <conn>', 'the maximum tab at the same time', 5)
-    .option('-N --num <number>', 'the number of tab profiler per hour', 1800);
+    .option('-I --interval <time>', 'the interval of each tab', 1)
+    .option('-N --num <number>', 'the number of tab profiler per hour', 3600);
 
 /* profiler the special url with new tab */
 async function newTab(item, timeout, waitTime) {    
@@ -143,7 +143,7 @@ function init() {
     program.parse(process.argv);
     config.dst = program.dst;
     config.port = program.port;
-    program.max = parseInt(program.max);
+    program.interval = parseInt(program.interval);
     program.num = parseInt(program.num);    
 
     /* 并发执行 提高效率 */
@@ -167,7 +167,7 @@ async function main() {
     try {
         /* initial */
         await init();
-        const {num, timeout, waitTime} = program;
+        const {interval, num, timeout, waitTime} = program;
         /* run as server */
         do {
             /* start Chrome */
@@ -178,7 +178,7 @@ async function main() {
             const rows = await db.fetchNewUrls(num);
             for (let row of rows) {
                 newTab(row, timeout, waitTime);
-                await delay(3600/num);
+                await delay(interval);
             }
             console.log("App stop at %s", formatDateTime(new Date()));
             console.log('************ end! ************');
