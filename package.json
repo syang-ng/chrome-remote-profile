@@ -8,7 +8,8 @@
   },
   "main": "app.js",
   "scripts": {
-    "run": "node app.js",
+    "test": "node app.js -F y -C y -P 10086 -W 50 -M 30",
+    "dev": "node app.js -P 10086 -W 50 -M 30 -F y -C ys",
     "clean": "rm -f ./profiles/*.json; echo '' > ./profiles/maps.txt;"
   },
   "author": "syang2forever",
