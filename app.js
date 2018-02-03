@@ -9,7 +9,7 @@ global.Promise = require("bluebird");
 
 const DB = require('./db');
 const { env } = require('./env');
-const { config } = require('./config');
+const { config,redisConfig  } = require('./config');
 const { delay, formatDateTime} = require('./utils');
 
 const writeFile = Promise.promisify(fs.writeFile);
@@ -32,9 +32,10 @@ program
     .option('-D --dst <path>', 'your output dst dir', '/home/lancer/share/')
     .option('-P --port <port>', 'your chrome debug port', config.port)
     .option('-T --timeout <time>', 'the time to profile', 10)
-    .option('-W --waitTime <time>', 'the delay time to wait for website loading', 30)
+    .option('-W --waitTime <time>', 'the delay time to wait for website loading', 20)
     .option('-I --interval <time>', 'the interval of each tab', 1)
-    .option('-N --num <number>', 'the number of tab profiler per hour', 3600);
+    .option('-N --num <number>', 'the number of tab profiler per hour', 3600)
+    .option('-E --env <env>', 'the environment', 'production');
 
 /* profiler the special url with new tab */
 async function newTab(item, timeout, waitTime) {    
@@ -93,6 +94,7 @@ async function newTab(item, timeout, waitTime) {
             writeJson(id, 0, profile);
             /* profile the other thread */
             let sessionId;
+            num += queue.length;
             await Promise.map(queue, async function(sessionId) {
                 if (sessionId === undefined) {
                     return;
@@ -113,21 +115,21 @@ async function newTab(item, timeout, waitTime) {
                 });
                 seq++;
                 await delay(timeout);
-                await Target.sendMessageToTarget({
-                    message: JSON.stringify({id: seq, method:"Profiler.stop"}),
+                map.set(seq, sessionId);
+                Target.sendMessageToTarget({
+                    message: JSON.stringify({id: seq++, method:"Profiler.stop"}),
                     sessionId: sessionId
                 });
-                map.set(seq, sessionId);
-                num++;
-                seq++;
-            }, {concurrency: 1});
-            if (!num) {
+            }, {concurrency: parseFloat('Infinity')});
+            await delay(5);
+            if (queue.length == 0) {
                 CDP.Close({
                     host: config.host,
                     port: config.port,
                     id: target.id
                 });
-                db.finishProfile(id, total);
+                db.finishProfile(id, 1);
+
             }
         }        
     } catch (err) {
@@ -146,9 +148,15 @@ function init() {
     config.port = program.port;
     program.interval = parseInt(program.interval);
     program.num = parseInt(program.num);    
+    if (program.env != 'production') {
+        console.log('test env');
+        config.dst = '/r910/share';
+        redisConfig.host = '127.0.0.1';
+    }
 
+    config.chromeFlags = ['--headless'];
     if(env==='old') {
-        config.chromeFlags = ['--no-sandbox'];
+        config.chromeFlags.push('--no-sandbox');
     }
 
     /* 并发执行 提高效率 */
@@ -172,7 +180,7 @@ async function main() {
     try {
         /* initial */
         await init();
-        const {interval, num, timeout, waitTime} = program;
+        const {interval, toProfileUrlNums, timeout, waitTime} = program;
         /* run as server */
         do {
             /* start Chrome */
@@ -180,7 +188,10 @@ async function main() {
             /* run */
             console.log('************ begin! ************');
             console.log("App run at %s", formatDateTime(new Date()));
-            const rows = await db.fetchNewUrls(num);
+            const rows = await db.fetchNewUrls(toProfileUrlNums);
+            console.log('fetch from redis ' + rows.length + ' urls');
+            if (rows.length == 0)
+                break;
             for (let row of rows) {
                 newTab(row, timeout, waitTime);
                 await delay(interval);
@@ -190,6 +201,8 @@ async function main() {
             /* delay for kill Chrome */
             await delay(60);
             await chrome.kill();
+            if (rows.length < toProfileUrlNums)
+                break;
         } while (true);
     } catch (err) {
         console.error(err);

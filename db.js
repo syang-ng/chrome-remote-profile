@@ -1,8 +1,9 @@
 const mysql = require('mysql2/promise');
 const redis = require('redis')
 
-const { dbConfig } = require('./config');
+const { dbConfig, redisConfig } = require('./config');
 const { formatDateTime } = require('./utils');
+
 
 class DB {
     /**
@@ -19,7 +20,7 @@ class DB {
         );
 
         this.cover = cover; 
-        this.redisClient = redis.createClient(6379,'10.141.209.139');
+        this.redisClient = redis.createClient(6379,redisConfig.host);
 
 
     }
@@ -73,6 +74,9 @@ class DB {
         await Promise.all(redisFetches)
             .then(function(rows){
                 for(let k in rows){
+                    if (rows[k] == null){
+                        break;
+                    }
                     let strings = rows[k][1].split(',');
                     res.push({
                         'id':strings[0],
