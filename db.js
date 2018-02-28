@@ -12,7 +12,7 @@ class DB {
      * @param {boolean} cover - 是否覆盖已处理数据项.
      * @param {object} config - 数据库配置.
      */
-    constructor (redisLimit=8, limit=30, cover=false, config=dbConfig) {
+    constructor (redisLimit=3, limit=30, cover=false, config=dbConfig) {
         this.pool = mysql.createPool(
             Object.assign({
                 connectionLimit: limit
@@ -94,17 +94,33 @@ class DB {
      * @param {number} threads - 相应线程数.
      * @return {boolean} - 写入状态. 
      */
-    async finishProfile(id, threads) {
+    async finishProfile(id, threads, requestUrls) {
         const timestamp = formatDateTime(new Date());
         const sql = `UPDATE \`profilerUrl\` SET status=1, threads=${threads}, finishTimeStamp="${timestamp}" WHERE id = ${id}`;
         try {
             console.log(sql);
             await this.pool.execute(sql);
-            return true;
+            //return true;
         } catch (err) {
             console.error(err);
-            throw err;
+            //throw err;
         }
+        for (let idx in requestUrls){
+            const request = requestUrls[idx];
+            const url = request.url;
+            const time = request.time;
+            const requestUrl = request.requestUrl;
+            const fileHash = request.fileHash;
+            const category = request.category;
+            const requestsUrlSql = `INSERT INTO  requestHistory(url, time, requestUrl,category, fileHash)VALUES("${url}", "${time}", "${requestUrl}", "${category}","${fileHash}")`;
+            try {
+                console.log('requestUrls : ' +requestsUrlSql);
+                await this.pool.execute(requestsUrlSql);
+            } catch (err) {
+                console.error(err);
+            }
+        }
+        return ;
     }
 }
 
@@ -120,7 +136,7 @@ async function testRedis(){
         res = await db.fetchNewUrls();
         for(let e in res){
 
-        console.log(res[e]);
+            console.log(res[e]);
         }
         console.log(typeof res);
         console.log(res.length);

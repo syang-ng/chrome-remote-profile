@@ -71,3 +71,5 @@ test*
 
 # env file
 env.js
+
+*.swp

@@ -3,6 +3,7 @@ const util = require('util');
 const program = require('commander');
 const launcher = require('chrome-launcher');
 const CDP = require('chrome-remote-interface');
+const md5 = require('md5');
 
 // replace the Promise for high performance
 global.Promise = require("bluebird");
@@ -26,6 +27,13 @@ function writeJson(id, seq, data) {
     const path = util.format('%s/%d_%d.json', config.dst, id, seq);
     return writeFile(path, JSON.stringify(data));
 };
+function writeJS(data) {
+    // TODO accessdb
+    const fileMd5 = md5(data);
+    const path = util.format('%s/file_%s', config.dst, fileMd5);
+    return writeFile(path, data);
+}
+
 
 program
     .version('1.0.0')
@@ -33,14 +41,17 @@ program
     .option('-P --port <port>', 'your chrome debug port', config.port)
     .option('-T --timeout <time>', 'the time to profile', 10)
     .option('-W --waitTime <time>', 'the delay time to wait for website loading', 20)
-    .option('-I --interval <time>', 'the interval of each tab', 1)
-    .option('-N --num <number>', 'the number of tab profiler per hour', 3600)
+    .option('-I --interval <time>', 'the interval of each tab', 3)
+    .option('-N --num <number>', 'the number of tab to profile before chrome restart', 1000)
+    //.option('-N --num <number>', 'the number of tab profiler per hour', 3600)
     .option('-E --env <env>', 'the environment', 'production');
 
 /* profiler the special url with new tab */
 async function newTab(item, timeout, waitTime) {    
     const url = item.url;
+    const originalUrl = item.url;
     const id = item.id;
+    const requestUrls = [];
     let total = 1;
     try {
         // new tab
@@ -49,6 +60,7 @@ async function newTab(item, timeout, waitTime) {
             port: config.port,
             url: url
         });
+        let initTime = new Date();
         // profile the page
         if (target.type === 'page') {
             var client = await CDP({
@@ -60,12 +72,71 @@ async function newTab(item, timeout, waitTime) {
             let seq = 1;
             const map = new Map();
             const queue = new Array();
-            const {Target, Profiler} = client;
+            const {Target, Profiler, Network,Debugger} = client;
+            Network.requestWillBeSent((params) => {
+                console.log('request : ');
+                console.log('request : '+ params.request.url);
+                let deltaTime = new Date() - initTime;
+                requestUrls.push({
+                    'url':url,
+                    'time':deltaTime,
+                    'requestUrl': params.request.url,
+                    'category': 'request',
+                    'fileHash': 'NULL'
+                });
+            }); 
             await Profiler.enable();        
+            await Debugger.enable();
+            await Network.enable();
+            
+            Network.requestWillBeSent((params) => {
+           //     console.log('request : '+ params.request.url);
+            });
+        
+            Network.responseReceived((params) => {
+                console.log('receive : ' + params.response.url);
+                if (params.response.url.length < 1000) {
+                //console.log('receive : ' + params.response.mimeType);
+                //console.log('receive len : ' + params.response.encodedDataLength);
+                let deltaTime = new Date() - initTime;
+                requestUrls.push({
+                    'url':url,
+                    'time':deltaTime,
+                    'requestUrl': params.response.url,
+                    'category':'response',
+                    'fileHash': 'NULL'
+                });
+                }
+            });
+            Debugger.scriptParsed(async ({scriptId, url}) => {
+                // TODO handle errors
+                const {scriptSource} = await Debugger.getScriptSource({scriptId});
+                writeJS(scriptSource);
+                //console.log(`${url}:\n${scriptSource.slice(0, 10)}\n---`);
+                console.log('scrpit parsed : '+ url);
+                let deltaTime = new Date() - initTime;
+                const fileMd5 = md5(scriptSource);
+                requestUrls.push({
+                    'url':originalUrl,
+                    'time':deltaTime,
+                    'requestUrl': url,
+                    'category': 'scriptParsed',
+                    'fileHash': fileMd5
+                });
+            });
             await Target.setAutoAttach({autoAttach: true, waitForDebuggerOnStart: false});
             Target.attachedToTarget(function (obj) {
                 if (obj.sessionId !== null) {
                     queue.push(obj.sessionId);
+                }
+            });
+            Target.detachedFromTarget(function (obj) {
+                if (obj.sessionId != null) {
+                    const index = queue.indexOf(obj.sessionId);
+                    if (index > -1) {
+                        console.log(`detached: ${obj.sessionId}`);
+                        queue.splice(index, 1)
+                    }
                 }
             });
             Target.receivedMessageFromTarget(function(obj) {
@@ -81,7 +152,7 @@ async function newTab(item, timeout, waitTime) {
                             port: config.port,
                             id: target.id
                         });
-                        db.finishProfile(id, total);
+                        db.finishProfile(id, total, requestUrls);
                     }
                 }
             });
@@ -128,7 +199,7 @@ async function newTab(item, timeout, waitTime) {
                     port: config.port,
                     id: target.id
                 });
-                db.finishProfile(id, 1);
+                db.finishProfile(id, 1, requestUrls);
 
             }
         }        
@@ -152,6 +223,7 @@ function init() {
         console.log('test env');
         config.dst = '/r910/share';
         redisConfig.host = '127.0.0.1';
+        program.num = 1;
     }
 
     config.chromeFlags = ['--headless'];
@@ -203,6 +275,9 @@ async function main() {
             await chrome.kill();
             if (rows.length < toProfileUrlNums)
                 break;
+            if (program.env != 'production') {
+                break;
+            }
         } while (true);
     } catch (err) {
         console.error(err);
