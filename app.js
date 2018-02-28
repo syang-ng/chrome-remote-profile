@@ -39,7 +39,7 @@ program
     .version('1.0.0')
     .option('-D --dst <path>', 'your output dst dir', '/home/lancer/share/')
     .option('-P --port <port>', 'your chrome debug port', config.port)
-    .option('-T --timeout <time>', 'the time to profile', 10)
+    .option('-T --timeout <time>', 'the time to profile', 8)
     .option('-W --waitTime <time>', 'the delay time to wait for website loading', 20)
     .option('-I --interval <time>', 'the interval of each tab', 3)
     .option('-N --num <number>', 'the number of tab to profile before chrome restart', 1000)
@@ -48,6 +48,8 @@ program
 
 /* profiler the special url with new tab */
 async function newTab(item, timeout, waitTime) {    
+    console.log('new tab ');
+    console.log(item);
     const url = item.url;
     const originalUrl = item.url;
     const id = item.id;
@@ -146,7 +148,7 @@ async function newTab(item, timeout, waitTime) {
                     writeJson(id, total, message.result.profile);
                     num--;
                     total++;
-                    if (!num) {
+                    if (total > 4  || !num) {
                         CDP.Close({
                             host: config.host,
                             port: config.port,
@@ -166,6 +168,7 @@ async function newTab(item, timeout, waitTime) {
             /* profile the other thread */
             let sessionId;
             num += queue.length;
+		const subThreads = queue.length;
             await Promise.map(queue, async function(sessionId) {
                 if (sessionId === undefined) {
                     return;
@@ -191,9 +194,10 @@ async function newTab(item, timeout, waitTime) {
                     message: JSON.stringify({id: seq++, method:"Profiler.stop"}),
                     sessionId: sessionId
                 });
-            }, {concurrency: parseFloat('Infinity')});
-            await delay(5);
-            if (queue.length == 0) {
+            }, {concurrency: 4});
+            //}, {concurrency: parseFloat('Infinity')});
+            await delay(timeout+3);
+            if (total > 4  || !num){
                 CDP.Close({
                     host: config.host,
                     port: config.port,
@@ -218,7 +222,8 @@ function init() {
     config.dst = program.dst;
     config.port = program.port;
     program.interval = parseInt(program.interval);
-    program.num = parseInt(program.num);    
+    program.toProfileUrlNums = parseInt(program.num);    
+
     if (program.env != 'production') {
         console.log('test env');
         config.dst = '/r910/share';
@@ -260,11 +265,13 @@ async function main() {
             /* run */
             console.log('************ begin! ************');
             console.log("App run at %s", formatDateTime(new Date()));
-            const rows = await db.fetchNewUrls(toProfileUrlNums);
+            console.log('want to fetch '+ toProfileUrlNums + ' urls');
+            const rows = await db.fetchNewUrlsMaster(toProfileUrlNums);
             console.log('fetch from redis ' + rows.length + ' urls');
             if (rows.length == 0)
                 break;
             for (let row of rows) {
+
                 newTab(row, timeout, waitTime);
                 await delay(interval);
             }

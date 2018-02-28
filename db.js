@@ -57,7 +57,26 @@ class DB {
      * @param {number} limit - 范围限制.
      * @return {Array} - 返回数据数组. 
      */
-    async fetchNewUrls(redisLimit=8) {
+	async fetchNewUrlsMaster(totalUrls){
+
+
+	let times = totalUrls/10;
+console.log('redis db need to find  ' + totalUrls + ' urls');
+console.log('redis db need to find  ' + times + ' times');
+	let res = [];
+	while (times --){
+	let curRes = await this.fetchNewUrls(10);
+for(let item of curRes)
+
+	res.push(item);
+	if (curRes.length < 10)
+	break;
+}
+console.log('redis db find ' + res.length + ' urls');
+return res;	
+	
+}
+    async fetchNewUrls(redisLimit) {
         let res = new Array();
 
         let redisFetches = [];
@@ -132,8 +151,8 @@ async function testRedis(){
     catch(error){
         console.log(error);
     }
-    for(let i = 0; i <3; i++){
-        res = await db.fetchNewUrls();
+    for(let i = 0; i <2; i++){
+        res = await db.fetchNewUrlsMaster(1000);
         for(let e in res){
 
             console.log(res[e]);
