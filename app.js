@@ -43,7 +43,7 @@ program
     .option('-W --waitTime <time>', 'the delay time to wait for website loading', 20)
     .option('-I --interval <time>', 'the interval of each tab', 3)
     .option('-N --num <number>', 'the number of tab to profile before chrome restart', 1000)
-    //.option('-N --num <number>', 'the number of tab profiler per hour', 3600)
+//.option('-N --num <number>', 'the number of tab profiler per hour', 3600)
     .option('-E --env <env>', 'the environment', 'production');
 
 /* profiler the special url with new tab */
@@ -72,6 +72,7 @@ async function newTab(item, timeout, waitTime) {
             });
             let num = 0;
             let seq = 1;
+            let isThreadsLargerThanOne = 0;
             const map = new Map();
             const queue = new Array();
             const {Target, Profiler, Network,Debugger} = client;
@@ -90,24 +91,24 @@ async function newTab(item, timeout, waitTime) {
             await Profiler.enable();        
             await Debugger.enable();
             await Network.enable();
-            
+
             Network.requestWillBeSent((params) => {
-           //     console.log('request : '+ params.request.url);
+                //     console.log('request : '+ params.request.url);
             });
-        
+
             Network.responseReceived((params) => {
                 console.log('receive : ' + params.response.url);
                 if (params.response.url.length < 1000) {
-                //console.log('receive : ' + params.response.mimeType);
-                //console.log('receive len : ' + params.response.encodedDataLength);
-                let deltaTime = new Date() - initTime;
-                requestUrls.push({
-                    'url':url,
-                    'time':deltaTime,
-                    'requestUrl': params.response.url,
-                    'category':'response',
-                    'fileHash': 'NULL'
-                });
+                    //console.log('receive : ' + params.response.mimeType);
+                    //console.log('receive len : ' + params.response.encodedDataLength);
+                    let deltaTime = new Date() - initTime;
+                    requestUrls.push({
+                        'url':url,
+                        'time':deltaTime,
+                        'requestUrl': params.response.url,
+                        'category':'response',
+                        'fileHash': 'NULL'
+                    });
                 }
             });
             Debugger.scriptParsed(async ({scriptId, url}) => {
@@ -137,6 +138,7 @@ async function newTab(item, timeout, waitTime) {
                     const index = queue.indexOf(obj.sessionId);
                     if (index > -1) {
                         console.log(`detached: ${obj.sessionId}`);
+                        num--;
                         queue.splice(index, 1)
                     }
                 }
@@ -154,6 +156,7 @@ async function newTab(item, timeout, waitTime) {
                             port: config.port,
                             id: target.id
                         });
+                        isThreadsLargerThanOne = 1;
                         db.finishProfile(id, total, requestUrls);
                     }
                 }
@@ -168,7 +171,7 @@ async function newTab(item, timeout, waitTime) {
             /* profile the other thread */
             let sessionId;
             num += queue.length;
-		const subThreads = queue.length;
+            const subThreads = queue.length;
             await Promise.map(queue, async function(sessionId) {
                 if (sessionId === undefined) {
                     return;
@@ -197,7 +200,7 @@ async function newTab(item, timeout, waitTime) {
             }, {concurrency: 4});
             //}, {concurrency: parseFloat('Infinity')});
             await delay(timeout+3);
-            if (total > 4  || !num){
+            if (isThreadsLargerThanOne == 0 && (total > 4  || !num)  ){
                 CDP.Close({
                     host: config.host,
                     port: config.port,
