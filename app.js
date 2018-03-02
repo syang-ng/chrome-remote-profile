@@ -17,23 +17,60 @@ const writeFile = Promise.promisify(fs.writeFile);
 
 let db;
 
-/**
- * 封装了 json 的写入
- * @param {number} id   - url 在数据库中对应的 id.
- * @param {number} seq  - 该文件属于同一 url 的第几个文件.
- * @param {string} data - 需要写入的 json 数据. 
- */
 function writeJson(id, seq, data) {
     const path = util.format('%s/%d_%d.json', config.dst, id, seq);
     return writeFile(path, JSON.stringify(data));
 };
-function writeJS(data) {
+
+function writeJS(data, fileMd5) {
     // TODO accessdb
-    const fileMd5 = md5(data);
     const path = util.format('%s/file_%s', config.dst, fileMd5);
     return writeFile(path, data);
 }
 
+const rcvNetworkRequestWillBeSent = function(params, others) {
+    others.requestUrls.push({
+        'url': others.url,
+        'time': others.deltaTime,
+        'requestUrl': params.request.url,
+        'category': 'request',
+        'fileHash': 'NULL'
+    });
+}
+
+const rcvDebuggerGetScriptSource = function(data, others) {
+    /*
+    const fileMd5 = md5(data);
+    others.requestUrls.push({
+        'url': others.url,
+        'time': others.deltaTime,
+        'requestUrl': others.requestUrl,
+        'category': 'response',
+        'fileHash': fileMd5
+    });
+    writeJS(data);
+    */
+}
+
+const rcvNetworkGetResponseBody = function(data, others) {
+    const fileMd5 = md5(data);
+    others.requestUrls.push({
+        'url': others.url,
+        'time':others.deltaTime,
+        'requestUrl': others.requestUrl,
+        'category':'response',
+        'fileHash': fileMd5
+    });
+    writeJS(data);
+}
+
+const rcvProfileStop = function(id, seq, data) {
+    writeJson(id, seq, data);
+}
+
+const callbackMap = new Map([
+    ['Network.requestWillBeSent', rcvNetworkRequestWillBeSent]
+]);
 
 program
     .version('1.0.0')
@@ -47,14 +84,9 @@ program
     .option('-E --env <env>', 'the environment', 'production');
 
 /* profiler the special url with new tab */
-async function newTab(item, timeout, waitTime) {    
-    console.log('new tab ');
-    console.log(item);
+async function newTab(item, timeout, waitTime) {
     const url = item.url;
-    const originalUrl = item.url;
     const id = item.id;
-    const requestUrls = [];
-    let total = 1;
     try {
         // new tab
         const target = await CDP.New({
@@ -62,7 +94,6 @@ async function newTab(item, timeout, waitTime) {
             port: config.port,
             url: url
         });
-        let initTime = new Date();
         // profile the page
         if (target.type === 'page') {
             var client = await CDP({
@@ -70,146 +101,162 @@ async function newTab(item, timeout, waitTime) {
                 port: config.port,
                 target: target
             });
+            
             let num = 0;
             let seq = 1;
-            let isThreadsLargerThanOne = 0;
-            const map = new Map();
-            const queue = new Array();
-            const {Target, Profiler, Network,Debugger} = client;
-            Network.requestWillBeSent((params) => {
-                console.log('request : ');
-                console.log('request : '+ params.request.url);
-                let deltaTime = new Date() - initTime;
-                requestUrls.push({
-                    'url':url,
-                    'time':deltaTime,
-                    'requestUrl': params.request.url,
-                    'category': 'request',
-                    'fileHash': 'NULL'
-                });
-            }); 
-            await Profiler.enable();        
-            await Debugger.enable();
-            await Network.enable();
+            let total = 1;            
+            const callbackArray = new Array();
+            const sessions = new Set();
+            const requestUrls = [];
+            const initTime = new Date();
+            const requestArray = new Array();
+            
+            const {Debugger, Network, Target, Profiler} = client;
+            
+            await Promise.all([
+                Debugger.enable(),
+                Network.enable({maxTotalBufferSize: 100000000, maxResourceBufferSize: 50000000}),
+                Profiler.enable()
+            ]);
 
+            await Target.setAutoAttach({autoAttach: true, waitForDebuggerOnStart: false});        
+            
             Network.requestWillBeSent((params) => {
-                //     console.log('request : '+ params.request.url);
+                let deltaTime = new Date() - initTime;                
+                let others = {requestUrls: requestUrls, url: url, deltaTime: deltaTime}
+                rcvNetworkRequestWillBeSent(params);
             });
+            
+            Network.responseReceived(async (params) => {
+                let deltaTime = new Date() - initTime;
+                let others = {requestUrls: requestUrls, url: url, deltaTime: deltaTime, requestUrl: params.response.url};
+                const {body} = await Network.getResponseBody({requestId: params.requestId});
+                rcvNetworkGetResponseBody(body, others);
+            });
+            
+            Debugger.scriptParsed(async (params) => {
+                // TODO handle errors
+                let deltaTime = new Date() - initTime;
+                let others = {requestUrls: requestUrls, url: url, deltaTime: deltaTime, requestUrl: params.url};
+                const {scriptSource} = await Debugger.getScriptSource({scriptId: params.scriptId});
+                rcvDebuggerGetScriptSource(scriptSource, others);
+            });
+            
+            Target.attachedToTarget((obj) => {
+                if (obj.sessionId !== undefined) {
+                    let sessionId = obj.sessionId;
+                    console.log(`attched: ${sessionId}`);
+                    sessions.add(sessionId);
 
-            Network.responseReceived((params) => {
-                console.log('receive : ' + params.response.url);
-                if (params.response.url.length < 1000) {
-                    //console.log('receive : ' + params.response.mimeType);
-                    //console.log('receive len : ' + params.response.encodedDataLength);
-                    let deltaTime = new Date() - initTime;
-                    requestUrls.push({
-                        'url':url,
-                        'time':deltaTime,
-                        'requestUrl': params.response.url,
-                        'category':'response',
-                        'fileHash': 'NULL'
+                    Target.sendMessageToTarget({
+                        message: JSON.stringify({id: seq++, method:"Debugger.enable"}),
+                        sessionId: sessionId
+                    });
+                    Target.sendMessageToTarget({
+                        message: JSON.stringify({id: seq++, method:"Network.enable", params:{"maxTotalBufferSize":100000000,"maxResourceBufferSize":50000000}}),
+                        sessionId: sessionId
+                    });
+                    Target.sendMessageToTarget({
+                        message: JSON.stringify({id: seq++, method:"Profiler.enable"}),
+                        sessionId: sessionId
                     });
                 }
             });
-            Debugger.scriptParsed(async ({scriptId, url}) => {
-                // TODO handle errors
-                const {scriptSource} = await Debugger.getScriptSource({scriptId});
-                writeJS(scriptSource);
-                //console.log(`${url}:\n${scriptSource.slice(0, 10)}\n---`);
-                console.log('scrpit parsed : '+ url);
-                let deltaTime = new Date() - initTime;
-                const fileMd5 = md5(scriptSource);
-                requestUrls.push({
-                    'url':originalUrl,
-                    'time':deltaTime,
-                    'requestUrl': url,
-                    'category': 'scriptParsed',
-                    'fileHash': fileMd5
-                });
-            });
-            await Target.setAutoAttach({autoAttach: true, waitForDebuggerOnStart: false});
-            Target.attachedToTarget(function (obj) {
-                if (obj.sessionId !== null) {
-                    queue.push(obj.sessionId);
+            Target.detachedFromTarget((obj) => {
+                if (obj.sessionId !== undefined) {
+                    console.log(`detached: ${obj.sessionId}`);
+                    sessions.delete(obj.sessionId);
                 }
             });
-            Target.detachedFromTarget(function (obj) {
-                if (obj.sessionId != null) {
-                    const index = queue.indexOf(obj.sessionId);
-                    if (index > -1) {
-                        console.log(`detached: ${obj.sessionId}`);
-                        num--;
-                        queue.splice(index, 1)
-                    }
-                }
-            });
-            Target.receivedMessageFromTarget(function(obj) {
+            Target.receivedMessageFromTarget((obj)=>{
                 const message = JSON.parse(obj.message);
-                const sId = map.get(message.id);
-                if (sId !== undefined && message.result.profile !== undefined) {
-                    writeJson(id, total, message.result.profile);
-                    num--;
-                    total++;
-                    if (total > 4  || !num) {
-                        CDP.Close({
-                            host: config.host,
-                            port: config.port,
-                            id: target.id
-                        });
-                        isThreadsLargerThanOne = 1;
-                        db.finishProfile(id, total, requestUrls);
+                const deltaTime = new Date() - initTime;
+                let callback, others;
+                if (message.method === 'Debugger.scriptParsed') {
+                    callbackArray[seq] = rcvDebuggerGetScriptSource;
+                    requestArray[seq] = {requestUrls: requestUrls, url: url, deltaTime: deltaTime, requestUrl: params.url};
+                    Target.sendMessageToTarget({
+                        message: JSON.stringify({id: seq++, method:"Debugger.getScriptSource", params:{scriptId: message.params.scriptId}}),
+                        sessionId: obj.sessionId
+                    });
+                } else if (message.method === 'Network.responseReceived') {
+                    callbackArray[seq] = rcvNetworkGetResponseBody;
+                    requestArray[seq] = {requestUrls: requestUrls, url: url, deltaTime: deltaTime, requestUrl: params.response.url};
+                    Target.sendMessageToTarget({
+                        message: JSON.stringify({id: seq++, method:'Network.getResponseBody', params:{requestId: message.params.requestId}}),
+                        sessionId: obj.sessionId
+                    });
+                }else if (message.method !== undefined) {
+                    callback = callbackMap.get(message.method);
+                    if(callback!==undefined) {
+                        others = {requestUrls: requestUrls, url: url, deltaTime: deltaTime};
+                        callback(message.params, others);
                     }
+                } else if(message.id !== undefined) {
+                    callback = callbackArray[message.id];
+                    if(callback===rcvProfileStop){
+                        callback(id, total++, message.result.profile);                      
+                    }else if(callback===rcvDebuggerGetScriptSource){
+                        others = requestArray[message.id];                        
+                        callback(message.result.scriptSource, others);
+                        delete requestArray[message.id];
+                    }else if(callback===rcvNetworkGetResponseBody){
+                        others = requestArray[message.id];                        
+                        callback(message.result.body, others);
+                        delete requestArray[message.id];                        
+                    }
+                    delete callbackArray[message.id];
                 }
             });
             await delay(waitTime);
-            /* profile the main thread */
-            await Profiler.setSamplingInterval({interval: 100});
-            await Profiler.start();
-            await delay(timeout);
-            const {profile} = await Profiler.stop();
-            writeJson(id, 0, profile);
-            /* profile the other thread */
-            let sessionId;
-            num += queue.length;
-            const subThreads = queue.length;
-            await Promise.map(queue, async function(sessionId) {
-                if (sessionId === undefined) {
-                    return;
-                }
-                await Target.sendMessageToTarget({
-                    message: JSON.stringify({id: seq, method:"Profiler.enable"}),
-                    sessionId: sessionId
-                });                  
-                seq++;
-                await Target.sendMessageToTarget({
-                    message: JSON.stringify({id: seq, method:"Profiler.setSamplingInterval", params:{interval:100}}),
-                    sessionId: sessionId
-                });           
-                seq++;
-                await Target.sendMessageToTarget({
-                    message: JSON.stringify({id: seq, method:"Profiler.start"}),
-                    sessionId: sessionId
-                });
-                seq++;
-                await delay(timeout);
-                map.set(seq, sessionId);
-                Target.sendMessageToTarget({
-                    message: JSON.stringify({id: seq++, method:"Profiler.stop"}),
-                    sessionId: sessionId
-                });
-            }, {concurrency: 4});
-            //}, {concurrency: parseFloat('Infinity')});
+            await Promise.all([
+                (async()=>{
+                    /* profile the main thread */
+                    await Profiler.setSamplingInterval({interval: 100});
+                    await Profiler.start();
+                    await delay(timeout);
+                    const {profile} = await Profiler.stop();
+                    writeJson(id, 0, profile);
+                })(),
+                (async()=>{
+                    /* profile the other thread */
+                    await Promise.map(sessions, async (sessionId)=>{
+                        await Target.sendMessageToTarget({
+                            message: JSON.stringify({id: seq, method:"Profiler.setSamplingInterval", params:{interval:100}}),
+                            sessionId: sessionId
+                        });           
+                        seq++;
+                        await Target.sendMessageToTarget({
+                            message: JSON.stringify({id: seq, method:"Profiler.start"}),
+                            sessionId: sessionId
+                        });
+                        seq++;
+                        await delay(timeout);
+                        callbackArray[seq] = rcvProfileStop;
+                        Target.sendMessageToTarget({
+                            message: JSON.stringify({id: seq++, method:"Profiler.stop"}),
+                            sessionId: sessionId
+                        });
+                    }, {concurrency: 5});
+                })()
+            ]);
+            num+=sessions.size;
             await delay(timeout+3);
-            if (isThreadsLargerThanOne == 0 && (total > 4  || !num)  ){
-                CDP.Close({
-                    host: config.host,
-                    port: config.port,
-                    id: target.id
-                });
-                db.finishProfile(id, 1, requestUrls);
-
-            }
-        }        
+            await new Promise(async (resolve, reject)=>{
+                let count = 0;
+                while (total <= num && count < 6 && total < 5) {
+                    delay(0.5);
+                    count++;
+                }
+                resolve();                
+            });
+            CDP.Close({
+                host: config.host,
+                port: config.port,
+                id: target.id
+            });
+            db.finishProfile(id, total, requestUrls);
+        }
     } catch (err) {
         console.error(err);
     } finally {
