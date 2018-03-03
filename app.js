@@ -48,7 +48,7 @@ const rcvDebuggerGetScriptSource = function(data, others) {
         'category': 'response',
         'fileHash': fileMd5
     });
-    writeJS(data);
+    writeJS(data, fileMd5);
     */
 }
 
@@ -61,7 +61,7 @@ const rcvNetworkGetResponseBody = function(data, others) {
         'category':'response',
         'fileHash': fileMd5
     });
-    writeJS(data);
+    writeJS(data, fileMd5);
 }
 
 const rcvProfileStop = function(id, seq, data) {
@@ -74,7 +74,7 @@ const callbackMap = new Map([
 
 program
     .version('1.0.0')
-    .option('-D --dst <path>', 'your output dst dir', '/home/lancer/share/')
+    .option('-D --dst <path>', 'your output dst dir', '/home/lancer/share')
     .option('-P --port <port>', 'your chrome debug port', config.port)
     .option('-T --timeout <time>', 'the time to profile', 8)
     .option('-W --waitTime <time>', 'the delay time to wait for website loading', 20)
@@ -124,7 +124,7 @@ async function newTab(item, timeout, waitTime) {
             Network.requestWillBeSent((params) => {
                 let deltaTime = new Date() - initTime;                
                 let others = {requestUrls: requestUrls, url: url, deltaTime: deltaTime}
-                rcvNetworkRequestWillBeSent(params);
+                rcvNetworkRequestWillBeSent(params, others);
             });
             
             Network.responseReceived(async (params) => {
@@ -174,7 +174,7 @@ async function newTab(item, timeout, waitTime) {
                 let callback, others;
                 if (message.method === 'Debugger.scriptParsed') {
                     callbackArray[seq] = rcvDebuggerGetScriptSource;
-                    requestArray[seq] = {requestUrls: requestUrls, url: url, deltaTime: deltaTime, requestUrl: params.url};
+                    requestArray[seq] = {requestUrls: requestUrls, url: url, deltaTime: deltaTime, requestUrl: message.params.url};
                     Target.sendMessageToTarget({
                         message: JSON.stringify({id: seq++, method:"Debugger.getScriptSource", params:{scriptId: message.params.scriptId}}),
                         sessionId: obj.sessionId
@@ -276,8 +276,8 @@ function init() {
 
     if (program.env != 'production') {
         console.log('test env');
-        config.dst = '/r910/share';
-        redisConfig.host = '127.0.0.1';
+        config.dst = '/home/lancer/share';
+        //redisConfig.host = '127.0.0.1';
         program.num = 1;
     }
 
@@ -321,7 +321,6 @@ async function main() {
             if (rows.length == 0)
                 break;
             for (let row of rows) {
-
                 newTab(row, timeout, waitTime);
                 await delay(interval);
             }
