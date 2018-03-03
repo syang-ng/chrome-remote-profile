@@ -133,7 +133,7 @@ return res;
             const category = request.category;
             const requestsUrlSql = `INSERT INTO  requestHistory(url, time, requestUrl,category, fileHash)VALUES("${url}", "${time}", "${requestUrl}", "${category}","${fileHash}")`;
             try {
-                console.log('requestUrls : ' +requestsUrlSql);
+         //       console.log('requestUrls : ' +requestsUrlSql);
                 await this.pool.execute(requestsUrlSql);
             } catch (err) {
                 console.error(err);

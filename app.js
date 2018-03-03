@@ -22,10 +22,13 @@ function writeJson(id, seq, data) {
     return writeFile(path, JSON.stringify(data));
 };
 
-function writeJS(data, fileMd5) {
+function writeJS(data, fileMd5, url) {
     // TODO accessdb
+    if (!( url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css')|| url.endsWith('.html') || url.endsWith('.htm') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?'))){
+
     const path = util.format('%s/file_%s', config.dst, fileMd5);
     return writeFile(path, data);
+	}
 }
 
 const rcvNetworkRequestWillBeSent = function(params, others) {
@@ -61,7 +64,7 @@ const rcvNetworkGetResponseBody = function(data, others) {
         'category':'response',
         'fileHash': fileMd5
     });
-    writeJS(data, fileMd5);
+    writeJS(data, fileMd5, others.requestUrl);
 }
 
 const rcvProfileStop = function(id, seq, data) {
@@ -115,7 +118,7 @@ async function newTab(item, timeout, waitTime) {
             
             await Promise.all([
                 Debugger.enable(),
-                Network.enable({maxTotalBufferSize: 100000000, maxResourceBufferSize: 50000000}),
+                Network.enable({maxTotalBufferSize: 10000000, maxResourceBufferSize: 5000000}),
                 Profiler.enable()
             ]);
 
@@ -153,7 +156,7 @@ async function newTab(item, timeout, waitTime) {
                         sessionId: sessionId
                     });
                     Target.sendMessageToTarget({
-                        message: JSON.stringify({id: seq++, method:"Network.enable", params:{"maxTotalBufferSize":100000000,"maxResourceBufferSize":50000000}}),
+                        message: JSON.stringify({id: seq++, method:"Network.enable", params:{"maxTotalBufferSize":10000000,"maxResourceBufferSize":5000000}}),
                         sessionId: sessionId
                     });
                     Target.sendMessageToTarget({
