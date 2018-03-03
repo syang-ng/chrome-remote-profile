@@ -181,7 +181,7 @@ async function newTab(item, timeout, waitTime) {
                     });
                 } else if (message.method === 'Network.responseReceived') {
                     callbackArray[seq] = rcvNetworkGetResponseBody;
-                    requestArray[seq] = {requestUrls: requestUrls, url: url, deltaTime: deltaTime, requestUrl: params.response.url};
+                    requestArray[seq] = {requestUrls: requestUrls, url: url, deltaTime: deltaTime, requestUrl: message.params.response.url};
                     Target.sendMessageToTarget({
                         message: JSON.stringify({id: seq++, method:'Network.getResponseBody', params:{requestId: message.params.requestId}}),
                         sessionId: obj.sessionId
@@ -201,8 +201,10 @@ async function newTab(item, timeout, waitTime) {
                         callback(message.result.scriptSource, others);
                         delete requestArray[message.id];
                     }else if(callback===rcvNetworkGetResponseBody){
-                        others = requestArray[message.id];                        
-                        callback(message.result.body, others);
+                        others = requestArray[message.id];
+                        if(message.result!==undefined) {                 
+                            callback(message.result.body, others);
+                        }
                         delete requestArray[message.id];                        
                     }
                     delete callbackArray[message.id];
