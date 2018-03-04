@@ -4,6 +4,8 @@ const program = require('commander');
 const launcher = require('chrome-launcher');
 const CDP = require('chrome-remote-interface');
 const md5 = require('md5');
+const exec = require('child_process').exec;
+
 
 // replace the Promise for high performance
 global.Promise = require("bluebird");
@@ -315,6 +317,7 @@ async function main() {
         const {interval, toProfileUrlNums, timeout, waitTime} = program;
         /* run as server */
         do {
+	try {
             /* start Chrome */
             const chrome = await launcher.launch(config);
             /* run */
@@ -334,11 +337,25 @@ async function main() {
             /* delay for kill Chrome */
             await delay(60);
             await chrome.kill();
+            
             if (rows.length < toProfileUrlNums)
                 break;
             if (program.env != 'production') {
                 break;
             }
+}catch (err){
+        console.error(err);
+} finally {
+    let yourscript = exec('pkill chrome',
+       (error, stdout, stderr) => {
+           console.log(`${stdout}`);
+           console.log(`${stderr}`);
+           if (error !== null) {
+               console.log(`exec error: ${error}`);
+           }
+       });
+}
+
         } while (true);
     } catch (err) {
         console.error(err);
