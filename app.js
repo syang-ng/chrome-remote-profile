@@ -21,15 +21,19 @@ let db;
 
 function writeJson(id, seq, data) {
     const path = util.format('%s/%d_%d.json', config.dst, id, seq);
-    return writeFile(path, JSON.stringify(data));
-};
+    writeFile(path, JSON.stringify(data));
+    fs.chmodSync(path, 0o777);
+    return ;
+}
 
 function writeJS(data, fileMd5, url) {
     // TODO accessdb
     if (!( url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css')|| url.endsWith('.html') || url.endsWith('.htm') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?'))){
 
     const path = util.format('%s/file_%s', config.dst, fileMd5);
-    return writeFile(path, data);
+    writeFile(path, data);
+    fs.chmodSync(path, 0o777);
+    return;
 	}
 }
 
