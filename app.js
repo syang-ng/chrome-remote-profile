@@ -26,7 +26,7 @@ function writeJson(id, seq, data) {
             console.log(err);
 	} else {
             fs.chmod(path, '666',(err)=>{
-		console.log(err);
+		if (err) console.log(err);
 	    });
 	}
     });
@@ -43,7 +43,7 @@ function writeJS(data, fileMd5, url) {
             console.log(err);
 	} else {
             fs.chmod(path, '666',(err)=>{
-		console.log(err);
+		if (err)console.log(err);
 	    });
 	}
     });
