@@ -21,8 +21,14 @@ let db;
 
 function writeJson(id, seq, data) {
     const path = util.format('%s/%d_%d.json', config.dst, id, seq);
-    fs.writeFile(path, JSON.stringify(data), ()=>{
-        fs.chmod(path, '666');
+    fs.writeFile(path, JSON.stringify(data), (err)=>{
+	if (err) {
+            console.log(err);
+	} else {
+            fs.chmod(path, '666',(err)=>{
+		console.log(err);
+	    });
+	}
     });
     return ;
 }
@@ -32,8 +38,14 @@ function writeJS(data, fileMd5, url) {
     if (!( url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css')|| url.endsWith('.html') || url.endsWith('.htm') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?'))){
 
     const path = util.format('%s/file_%s', config.dst, fileMd5);
-    fs.writeFile(path, data,()=>{
-        fs.chmod(path, 0666);
+    fs.writeFile(path, data,(err)=>{
+	if (err) {
+            console.log(err);
+	} else {
+            fs.chmod(path, '666',(err)=>{
+		console.log(err);
+	    });
+	}
     });
     return;
 	}
