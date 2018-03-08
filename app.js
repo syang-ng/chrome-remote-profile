@@ -101,7 +101,7 @@ program
     .option('-P --port <port>', 'your chrome debug port', config.port)
     .option('-T --timeout <time>', 'the time to profile', 8)
     .option('-W --waitTime <time>', 'the delay time to wait for website loading', 20)
-    .option('-I --interval <time>', 'the interval of each tab', 3)
+    .option('-I --interval <time>', 'the interval of each tab', 2)
     .option('-N --num <number>', 'the number of tab to profile before chrome restart', 1000)
 //.option('-N --num <number>', 'the number of tab profiler per hour', 3600)
     .option('-E --env <env>', 'the environment', 'production');
