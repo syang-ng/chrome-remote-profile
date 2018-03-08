@@ -247,6 +247,11 @@ async function newTab(item, timeout, waitTime) {
             await delay(waitTime);
             if(sessions.size >= 15) {
                 await db.finishProfile(id, sessions.size + 1, requestUrls);                
+                await CDP.Close({
+                    host: config.host,
+                    port: config.port,
+                    id: target.id
+                });
                 return;
             }
             await Promise.all([
