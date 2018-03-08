@@ -34,6 +34,8 @@ function writeJson(id, seq, data) {
 }
 
 function writeJS(data, fileMd5, url) {
+    // No JS
+    // return;
     // TODO accessdb
     if (!( url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css')|| url.endsWith('.html') || url.endsWith('.htm') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?'))){
 
@@ -63,6 +65,10 @@ const rcvNetworkRequestWillBeSent = function(params, others) {
 
 const rcvDebuggerGetScriptSource = function(data, others) {
     /*
+    // return if data is null or undefined
+    if (data === undefined || data === null) {
+        return;
+    }
     const fileMd5 = md5(data);
     others.requestUrls.push({
         'url': others.url,
@@ -76,6 +82,10 @@ const rcvDebuggerGetScriptSource = function(data, others) {
 }
 
 const rcvNetworkGetResponseBody = function(data, others) {
+    // return if data is null or undefined
+    if (data === undefined || data === null) {
+        return;
+    }
     const fileMd5 = md5(data);
     others.requestUrls.push({
         'url': others.url,
@@ -110,6 +120,7 @@ program
 async function newTab(item, timeout, waitTime) {
     const url = item.url;
     const id = item.id;
+    await db.startProfile(id);
     try {
         // new tab
         const target = await CDP.New({
@@ -388,3 +399,4 @@ process.on("uncatchException", function(err) {
 });
 
 main();
+

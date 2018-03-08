@@ -12,20 +12,17 @@ class DB {
      * @param {boolean} cover - 是否覆盖已处理数据项.
      * @param {object} config - 数据库配置.
      */
-    constructor (redisLimit=3, limit=30, cover=false, config=dbConfig) {
+    constructor(redisLimit = 3, limit = 30, cover = false, config = dbConfig) {
         this.pool = mysql.createPool(
             Object.assign({
                 connectionLimit: limit
             }, dbConfig)
         );
-
-        this.cover = cover; 
-        this.redisClient = redis.createClient(6379,redisConfig.host);
-
-
+        this.cover = cover;
+        this.redisClient = redis.createClient(6379, redisConfig.host);
     }
 
-    /* 关闭数据库连接线程池 */    
+    /* 关闭数据库连接线程池 */
     async close() {
         await this.pool.end();
     }
@@ -35,7 +32,7 @@ class DB {
      * @return {number} - 最新插入的 id.
      */
     async recentId() {
-        const condition = !this.cover?' WHERE status is NULL ':' ';
+        const condition = !this.cover ? ' WHERE status is NULL ' : ' ';
         const sql = `SELECT id FROM \`profilerUrl\`${condition}ORDER BY id DESC LIMIT 1`;
         try {
             const [row, field] = await this.pool.query(sql);
@@ -57,51 +54,48 @@ class DB {
      * @param {number} limit - 范围限制.
      * @return {Array} - 返回数据数组. 
      */
-	async fetchNewUrlsMaster(totalUrls){
+    async fetchNewUrlsMaster(totalUrls) {
+        let times = totalUrls / 10;
+        console.log('redis db need to find  ' + totalUrls + ' urls');
+        console.log('redis db need to find  ' + times + ' times');
+        let res = [];
+        while (times--) {
+            let curRes = await this.fetchNewUrls(10);
+            for (let item of curRes)
 
+                res.push(item);
+            if (curRes.length < 10)
+                break;
+        }
+        console.log('redis db find ' + res.length + ' urls');
+        return res;
+    }
 
-	let times = totalUrls/10;
-console.log('redis db need to find  ' + totalUrls + ' urls');
-console.log('redis db need to find  ' + times + ' times');
-	let res = [];
-	while (times --){
-	let curRes = await this.fetchNewUrls(10);
-for(let item of curRes)
-
-	res.push(item);
-	if (curRes.length < 10)
-	break;
-}
-console.log('redis db find ' + res.length + ' urls');
-return res;	
-	
-}
     async fetchNewUrls(redisLimit) {
         let res = new Array();
 
         let redisFetches = [];
-        for (let i= 0; i < redisLimit; i++){
+        for (let i = 0; i < redisLimit; i++) {
             redisFetches.push(new Promise(resolve => {
-                this.redisClient.blpop('to_profile',1, function(error, data){
+                this.redisClient.blpop('to_profile', 1, function (error, data) {
                     if (error) {
-                        console.log('redis fetchNewUrls error : ',error);
+                        console.log('redis fetchNewUrls error : ', error);
                     }
                     resolve(data);
                 });
             }));
         }
         await Promise.all(redisFetches)
-            .then(function(rows){
-                for(let k in rows){
-                    if (rows[k] == null){
+            .then(function (rows) {
+                for (let k in rows) {
+                    if (rows[k] == null) {
                         break;
                     }
                     let strings = rows[k][1].split(',');
                     res.push({
-                        'id':strings[0],
-                        'url':strings[1]
+                        'id': strings[0],
+                        'url': strings[1]
                     });
-
                 }
             });
         return res;
@@ -115,7 +109,7 @@ return res;
      */
     async finishProfile(id, threads, requestUrls) {
         const timestamp = formatDateTime(new Date());
-        const sql = `UPDATE \`profilerUrl\` SET status=1, threads=${threads}, finishTimeStamp="${timestamp}" WHERE id = ${id}`;
+        const sql = `UPDATE \`profilerUrl\` SET status=4, threads=${threads}, finishTimeStamp="${timestamp}" WHERE id = ${id}`;
         try {
             console.log(sql);
             await this.pool.execute(sql);
@@ -124,7 +118,7 @@ return res;
             console.error(err);
             //throw err;
         }
-        for (let idx in requestUrls){
+        for (let idx in requestUrls) {
             const request = requestUrls[idx];
             const url = request.url;
             const time = request.time;
@@ -133,27 +127,36 @@ return res;
             const category = request.category;
             const requestsUrlSql = `INSERT INTO  requestHistory(url, time, requestUrl,category, fileHash)VALUES("${url}", "${time}", "${requestUrl}", "${category}","${fileHash}")`;
             try {
-         //       console.log('requestUrls : ' +requestsUrlSql);
+                //       console.log('requestUrls : ' +requestsUrlSql);
                 await this.pool.execute(requestsUrlSql);
             } catch (err) {
                 console.error(err);
             }
         }
-        return ;
+        return;
+    }
+
+    async startProfile(id) {
+        const sql = `UPDATE \`profilerUrl\` SET status=3 WHERE id = ${id}`;
+        try {
+            await this.pool.execute(sql);
+        } catch (err) {
+            console.error(err);
+        }
+        return;
     }
 }
 
-async function testRedis(){
+async function testRedis() {
     let db;
-    try{
+    try {
         db = new DB();
-    }
-    catch(error){
+    } catch (error) {
         console.log(error);
     }
-    for(let i = 0; i <2; i++){
+    for (let i = 0; i < 2; i++) {
         res = await db.fetchNewUrlsMaster(1000);
-        for(let e in res){
+        for (let e in res) {
 
             console.log(res[e]);
         }
