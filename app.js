@@ -245,6 +245,10 @@ async function newTab(item, timeout, waitTime) {
                 }
             });
             await delay(waitTime);
+            if(sessions.size >= 15) {
+                await db.finishProfile(id, sessions.size + 1, requestUrls);                
+                return;
+            }
             await Promise.all([
                 (async()=>{
                     /* profile the main thread */
@@ -277,10 +281,9 @@ async function newTab(item, timeout, waitTime) {
                 })()
             ]);
             num+=sessions.size;
-            await delay(timeout+3);
             await new Promise(async (resolve, reject)=>{
                 let count = 0;
-                while (total <= num && count < 6 && total < 5) {
+                while (total <= num && count < 10) {
                     delay(0.5);
                     count++;
                 }

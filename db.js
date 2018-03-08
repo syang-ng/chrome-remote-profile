@@ -137,7 +137,8 @@ class DB {
     }
 
     async startProfile(id) {
-        const sql = `UPDATE \`profilerUrl\` SET status=3 WHERE id = ${id}`;
+        const timestamp = formatDateTime(new Date());        
+        const sql = `UPDATE \`profilerUrl\` SET status=3, finishTimeStamp="${timestamp}" WHERE id = ${id}`;
         try {
             await this.pool.execute(sql);
         } catch (err) {
