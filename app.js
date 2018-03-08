@@ -383,7 +383,9 @@ async function main() {
 }catch (err){
         console.error(err);
 } finally {
-    let yourscript = exec('pkill chrome',
+    const cmd = `pkill -f port=${config.port}`;
+    console.log(cmd);
+    let yourscript = exec(cmd,
        (error, stdout, stderr) => {
            console.log(`${stdout}`);
            console.log(`${stderr}`);
