@@ -22,34 +22,44 @@ let db;
 function writeJson(id, seq, data) {
     const path = util.format('%s/%d_%d.json', config.dst, id, seq);
     fs.writeFile(path, JSON.stringify(data), (err)=>{
-	if (err) {
+	    if (err) {
             console.log(err);
-	} else {
-            fs.chmod(path, '666',(err)=>{
-		if (err) console.log(err);
-	    });
-	}
+	    } else {
+            const stat = fs.statSync(path);
+            // if belongs to user and then chmod
+            if (stat.uid === process.getuid()) {
+                fs.chmod(path, '666',(err)=>{
+                    if (err) console.log(err);
+                });
+            }
+    	}
     });
-    return ;
+    return;
 }
 
 function writeJS(data, fileMd5, url) {
     // No JS
     // return;
     // TODO accessdb
-    if (!( url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css')|| url.endsWith('.html') || url.endsWith('.htm') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?'))){
+    if (!(url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css')|| url.endsWith('.html') || url.endsWith('.htm') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?'))){
 
     const path = util.format('%s/file_%s', config.dst, fileMd5);
+
+    // if exist; return;
+    if (fs.existsSync(fileMd5)) {
+        return;
+    }
     fs.writeFile(path, data,(err)=>{
-	if (err) {
-            console.log(err);
-	} else {
-            fs.chmod(path, '666',(err)=>{
-		if (err)console.log(err);
-	    });
-	}
-    });
-    return;
+	    if (err) {
+                console.log(err);
+	    } else {
+                fs.chmod(path, '666',(err)=>{
+		            if (err) {
+                        console.log(err);
+                    }
+	            });
+	        }
+        });
 	}
 }
 
