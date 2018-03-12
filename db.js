@@ -22,8 +22,9 @@ class DB {
         this.redisClient = redis.createClient(6379, redisConfig.host);
     }
 
-    /* 关闭数据库连接线程池 */
+    /* 关闭数据库连接线程池和 redis 连接 */
     async close() {
+        this.redisClient.quit();
         await this.pool.end();
     }
 
@@ -137,7 +138,7 @@ class DB {
     }
 
     async startProfile(id) {
-        const timestamp = formatDateTime(new Date());        
+        const timestamp = formatDateTime(new Date());
         const sql = `UPDATE \`profilerUrl\` SET status=3, finishTimeStamp="${timestamp}" WHERE id = ${id}`;
         try {
             await this.pool.execute(sql);
@@ -148,6 +149,7 @@ class DB {
     }
 }
 
+// test function
 async function testRedis() {
     let db;
     try {

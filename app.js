@@ -348,11 +348,6 @@ function init() {
                 fs.mkdirSync(config.dst);
             }
             resolve();
-        }),
-        /* mysql 数据库对象创建 */        
-        new Promise((resolve)=>{
-            db = new DB(program.num, 300);
-            resolve();
         })
     ]);
 }
@@ -364,52 +359,52 @@ async function main() {
         const {interval, toProfileUrlNums, timeout, waitTime} = program;
         /* run as server */
         do {
-	try {
-            /* start Chrome */
-            const chrome = await launcher.launch(config);
-            /* run */
-            console.log('************ begin! ************');
-            console.log("App run at %s", formatDateTime(new Date()));
-            console.log('want to fetch '+ toProfileUrlNums + ' urls');
-            const rows = await db.fetchNewUrlsMaster(toProfileUrlNums);
-            console.log('fetch from redis ' + rows.length + ' urls');
-            if (rows.length == 0)
-                break;
-            for (let row of rows) {
-                newTab(row, timeout, waitTime);
-                await delay(interval);
+	        try {
+                /* mysql 数据库对象创建 *//* init db */
+                db = new DB(program.num, 300);                
+                /* start Chrome */
+                const chrome = await launcher.launch(config);
+                /* run */
+                console.log('************ begin! ************');
+                console.log("App run at %s", formatDateTime(new Date()));
+                console.log('want to fetch '+ toProfileUrlNums + ' urls');
+                const rows = await db.fetchNewUrlsMaster(toProfileUrlNums);
+                console.log('fetch from redis ' + rows.length + ' urls');
+                if (rows.length == 0)
+                    break;
+                for (let row of rows) {
+                    newTab(row, timeout, waitTime);
+                    await delay(interval);
+                }
+                console.log("App stop at %s", formatDateTime(new Date()));
+                console.log('************ end! ************');
+                /* delay for kill Chrome */
+                await delay(60);
+                await chrome.kill();
+                
+                if (rows.length < toProfileUrlNums)
+                    break;
+                if (program.env != 'production') {
+                    break;
+                }
+            } catch (err){
+                console.error(err);
+            } finally {
+                const cmd = `pkill -f port=${config.port}`;
+                console.log(cmd);
+                let yourscript = exec(cmd, (error, stdout, stderr) => {
+                    console.log(`${stdout}`);
+                    console.log(`${stderr}`);
+                    if (error !== null) {
+                        console.log(`exec error: ${error}`);
+                    }
+                });
+                await db.close();        
             }
-            console.log("App stop at %s", formatDateTime(new Date()));
-            console.log('************ end! ************');
-            /* delay for kill Chrome */
-            await delay(60);
-            await chrome.kill();
-            
-            if (rows.length < toProfileUrlNums)
-                break;
-            if (program.env != 'production') {
-                break;
-            }
-}catch (err){
-        console.error(err);
-} finally {
-    const cmd = `pkill -f port=${config.port}`;
-    console.log(cmd);
-    let yourscript = exec(cmd,
-       (error, stdout, stderr) => {
-           console.log(`${stdout}`);
-           console.log(`${stderr}`);
-           if (error !== null) {
-               console.log(`exec error: ${error}`);
-           }
-       });
-}
-
         } while (true);
     } catch (err) {
         console.error(err);
     } finally {
-        db.close();
         process.exit();                
     }
 }
@@ -419,4 +414,3 @@ process.on("uncatchException", function(err) {
 });
 
 main();
-
