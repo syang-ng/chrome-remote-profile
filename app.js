@@ -12,8 +12,8 @@ global.Promise = require("bluebird");
 
 const DB = require('./db');
 const { env } = require('./env');
-const { config,redisConfig  } = require('./config');
-const { delay, formatDateTime} = require('./utils');
+const { config,redisConfig } = require('./config');
+const { delay, formatDateTime } = require('./utils');
 
 //const writeFile = Promise.promisify(fs.writeFile);
 
@@ -42,23 +42,21 @@ function writeJS(data, fileMd5, url) {
     // return;
     // TODO accessdb
     if (!(url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css')|| url.endsWith('.html') || url.endsWith('.htm') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?'))){
-
-    const path = util.format('%s/file_%s', config.dst, fileMd5);
-
-    // if exist; return;
-    if (fs.existsSync(fileMd5)) {
-        return;
-    }
-    fs.writeFile(path, data,(err)=>{
-	    if (err) {
+        const path = util.format('%s/file_%s', config.dst, fileMd5);
+        // if exist; return;
+        if (fs.existsSync(fileMd5)) {
+            return;
+        }
+        fs.writeFile(path, data,(err)=>{
+            if (err) {
                 console.log(err);
-	    } else {
+            } else {
                 fs.chmod(path, '666',(err)=>{
-		            if (err) {
+                    if (err) {
                         console.log(err);
                     }
-	            });
-	        }
+                });
+            }
         });
 	}
 }
@@ -174,16 +172,24 @@ async function newTab(item, timeout, waitTime) {
             Network.responseReceived(async (params) => {
                 let deltaTime = new Date() - initTime;
                 let others = {requestUrls: requestUrls, url: url, deltaTime: deltaTime, requestUrl: params.response.url};
-                const {body} = await Network.getResponseBody({requestId: params.requestId});
-                rcvNetworkGetResponseBody(body, others);
+                try {
+                    const {body} = await Network.getResponseBody({requestId: params.requestId});
+                    rcvNetworkGetResponseBody(body, others);
+                } catch (err) {
+                    console.error(err);
+                }
             });
             
             Debugger.scriptParsed(async (params) => {
                 // TODO handle errors
                 let deltaTime = new Date() - initTime;
                 let others = {requestUrls: requestUrls, url: url, deltaTime: deltaTime, requestUrl: params.url};
-                const {scriptSource} = await Debugger.getScriptSource({scriptId: params.scriptId});
-                rcvDebuggerGetScriptSource(scriptSource, others);
+                try {
+                    const {scriptSource} = await Debugger.getScriptSource({scriptId: params.scriptId});
+                    rcvDebuggerGetScriptSource(scriptSource, others);
+                } catch(err) {
+                    console.error(err);
+                }
             });
             
             Target.attachedToTarget((obj) => {
