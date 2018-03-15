@@ -44,7 +44,7 @@ function writeJS(data, fileMd5, url) {
     if (!(url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css')|| url.endsWith('.html') || url.endsWith('.htm') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?'))){
         const path = util.format('%s/file_%s', config.dst, fileMd5);
         // if exist; return;
-        if (fs.existsSync(fileMd5)) {
+        if (fs.existsSync(path)) {
             return;
         }
         fs.writeFile(path, data,(err)=>{
