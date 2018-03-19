@@ -20,7 +20,7 @@ const { delay, formatDateTime } = require('./utils');
 let db;
 
 function writeJson(id, seq, data) {
-    const path = util.format('%s/%d_%d.json', config.dst, id, seq);
+    const path = util.format('%s/%d_%d.json', config.dst+'/json', id, seq);
     fs.writeFile(path, JSON.stringify(data), (err)=>{
 	    if (err) {
             console.log(err);
@@ -42,7 +42,7 @@ function writeJS(data, fileMd5, url) {
     // return;
     // TODO accessdb
     if (!(url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css')|| url.endsWith('.html') || url.endsWith('.htm') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?'))){
-        const path = util.format('%s/file_%s', config.dst, fileMd5);
+        const path = util.format('%s/file_%s', config.dst+'/hash', fileMd5);
         // if exist; return;
         if (fs.existsSync(path)) {
             return;
@@ -352,6 +352,12 @@ function init() {
         new Promise((resolve)=>{
             if (!fs.existsSync(config.dst)) {
                 fs.mkdirSync(config.dst);
+            }
+            if (!fs.existsSync(config.dst+'/hash')) {
+                fs.mkdirSync(config.dst+'/hash');
+            }
+            if (!fs.existsSync(config.dst+'/json')) {
+                fs.mkdirSync(config.dst+'/json');
             }
             resolve();
         })
