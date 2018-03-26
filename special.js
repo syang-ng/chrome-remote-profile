@@ -259,7 +259,7 @@ function init() {
         program.toProfileUrlNums = 1;
     }
 
-    // config.chromeFlags = ['--headless'];
+    config.chromeFlags = ['--headless'];
     if(env==='old') {
         config.chromeFlags.push('--no-sandbox');
     }
