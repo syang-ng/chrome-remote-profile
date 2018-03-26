@@ -39,7 +39,7 @@ function writeJson(id, seq, data) {
 
 function writeJS(data, fileMd5, url) {
     // No JS
-    // return;
+     return;
     // TODO accessdb
     if (!(url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css')|| url.endsWith('.html') || url.endsWith('.htm') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?'))){
         const path = util.format('%s/file_%s', config.dst+'/hash', fileMd5);
