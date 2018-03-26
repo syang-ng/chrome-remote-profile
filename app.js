@@ -102,7 +102,7 @@ const rcvNetworkGetResponseBody = function(data, others) {
         'category':'response',
         'fileHash': fileMd5
     });
-    writeJS(data, fileMd5, others.requestUrl);
+    //writeJS(data, fileMd5, others.requestUrl);
 }
 
 const rcvProfileStop = function(id, seq, data) {
