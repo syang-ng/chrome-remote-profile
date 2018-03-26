@@ -32,9 +32,9 @@ async function writeJson(id, seq, data) {
 
 async function writeJS(data, id, scriptId) {
     // TODO accessdb
-    if (url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css')|| url.endsWith('.html') || url.endsWith('.htm') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?')) {
-        return;
-    }
+    //  if (url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css')|| url.endsWith('.html') || url.endsWith('.htm') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?')) {
+       // return;
+    //}
     const path = util.format('%s/%d_%d.js', config.dst, id, scriptId);
     try {
         await writeFile(path, JSON.stringify(data));
@@ -112,7 +112,7 @@ async function newTab(item, timeout, waitTime) {
             let total = 1;            
             const callbackArray = new Array();
             const sessions = new Set();
-            const requestUrls = [];
+            // const requestUrls = [];
             const initTime = new Date();
             const paramsArray = new Array();
             
@@ -130,6 +130,7 @@ async function newTab(item, timeout, waitTime) {
                     const {scriptSource} = await Debugger.getScriptSource({scriptId: scriptId});
                     rcvDebuggerGetScriptSource(scriptSource, {id, scriptId});
                 } catch(err) {
+                    console.log('script source error!');
                     console.error(err);
                 }
             });
@@ -215,12 +216,12 @@ async function newTab(item, timeout, waitTime) {
                             sessionId: sessionId
                         });
                     }, {concurrency: 5});
-                })()
+                 })()
             ]);
             num += sessions.size;
             await new Promise(async (resolve, reject)=>{
                 let count = 0;
-                while (total <= num && count < 10) {
+                while (total <= num && count < 100) {
                     delay(0.5);
                     count++;
                 }
@@ -233,6 +234,7 @@ async function newTab(item, timeout, waitTime) {
             });
         }
     } catch (err) {
+        console.log('tab error!');
         console.error(err);
     } finally {
         if (client) {
@@ -251,12 +253,13 @@ function init() {
 
     if (program.env != 'production') {
         console.log('test env');
-        config.dst = './rerun/';
+        config.dst = './rerun';
+        delete config['chromePath'];
         //redisConfig.host = '127.0.0.1';
-        program.num = 1;
+        program.toProfileUrlNums = 1;
     }
 
-    config.chromeFlags = ['--headless'];
+    // config.chromeFlags = ['--headless'];
     if(env==='old') {
         config.chromeFlags.push('--no-sandbox');
     }
@@ -298,7 +301,7 @@ async function main() {
                     await delay(interval);
                 }
                 /* delay for kill Chrome */
-                await delay(60);
+                await delay(75);
                 await Promise.all([
                     chrome.kill(),
                     db.close() 
@@ -309,6 +312,7 @@ async function main() {
                     break;
                 }
             } catch (err){
+                console.log('loop error');
                 console.error(err);
             } finally {
                 const cmd = `pkill -f port=${config.port}`;
