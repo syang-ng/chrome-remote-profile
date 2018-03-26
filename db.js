@@ -63,7 +63,6 @@ class DB {
         while (times--) {
             let curRes = await this.fetchNewUrls(10);
             for (let item of curRes)
-
                 res.push(item);
             if (curRes.length < 10)
                 break;
@@ -74,11 +73,39 @@ class DB {
 
     async fetchNewUrls(redisLimit) {
         let res = new Array();
-
         let redisFetches = [];
         for (let i = 0; i < redisLimit; i++) {
             redisFetches.push(new Promise(resolve => {
                 this.redisClient.blpop('to_profile', 1, function (error, data) {
+                    if (error) {
+                        console.log('redis fetchNewUrls error : ', error);
+                    }
+                    resolve(data);
+                });
+            }));
+        }
+        await Promise.all(redisFetches)
+            .then(function (rows) {
+                for (let k in rows) {
+                    if (rows[k] == null) {
+                        break;
+                    }
+                    let strings = rows[k][1].split(',');
+                    res.push({
+                        'id': strings[0],
+                        'url': strings[1]
+                    });
+                }
+            });
+        return res;
+    }
+
+    async fetchReRunUrls(redisLimit) {
+        const res = new Array();
+        const redisFetches = new Array();
+        for (let i = 0; i < redisLimit; i++) {
+            redisFetches.push(new Promise(resolve => {
+                this.redisClient.blpop('rerun', 1, function (error, data) {
                     if (error) {
                         console.log('redis fetchNewUrls error : ', error);
                     }
