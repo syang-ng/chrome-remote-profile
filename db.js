@@ -48,13 +48,6 @@ class DB {
         }
     }
 
-    /**
-     * 获得指定 id 范围内的数据
-     * @param {number} id1 - 起始 id.
-     * @param {number} id2 - 结束 id.
-     * @param {number} limit - 范围限制.
-     * @return {Array} - 返回数据数组. 
-     */
     async fetchNewUrlsMaster(totalUrls) {
         let times = totalUrls / 10;
         console.log('redis db need to find  ' + totalUrls + ' urls');
@@ -100,6 +93,22 @@ class DB {
         return res;
     }
 
+    async fetchReRunUrlsMaster(totalUrls) {
+        let times = totalUrls / 10;
+        console.log('redis db need to find  ' + totalUrls + ' urls');
+        console.log('redis db need to find  ' + times + ' times');
+        let res = [];
+        while (times--) {
+            let curRes = await this.fetchReRunUrls(10);
+            for (let item of curRes)
+                res.push(item);
+            if (curRes.length < 10)
+                break;
+        }
+        console.log('redis db find ' + res.length + ' urls');
+        return res;
+    }
+
     async fetchReRunUrls(redisLimit) {
         const res = new Array();
         const redisFetches = new Array();
@@ -126,6 +135,7 @@ class DB {
                     });
                 }
             });
+        console.log(res.length)
         return res;
     }
 

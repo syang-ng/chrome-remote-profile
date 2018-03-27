@@ -286,7 +286,7 @@ async function main() {
                 console.log('************ begin! ************');
                 console.log("App run at %s", formatDateTime(new Date()));
                 console.log('want to fetch '+ toProfileUrlNums + ' urls');
-                const rows = await db.fetchReRunUrls(toProfileUrlNums);
+                const rows = await db.fetchReRunUrlsMaster(toProfileUrlNums);
                 /*const rows = [
                    {id: 1621940, url: 'https://browsermine.com/'}
 		];*/ 
@@ -295,7 +295,6 @@ async function main() {
                     break;
                 for (let row of rows) {
                     await newTab(row, timeout, waitTime);
-                    await delay(interval);
                 }
                 /* delay for kill Chrome */
                 await Promise.all([
