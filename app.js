@@ -283,15 +283,13 @@ async function newTab(item, timeout, waitTime) {
                     /* profile the other thread */
                     await Promise.map(sessions, async (sessionId)=>{
                         await Target.sendMessageToTarget({
-                            message: JSON.stringify({id: seq, method:"Profiler.setSamplingInterval", params:{interval:100}}),
+                            message: JSON.stringify({id: seq++, method:"Profiler.setSamplingInterval", params:{interval:100}}),
                             sessionId: sessionId
                         });           
-                        seq++;
                         await Target.sendMessageToTarget({
-                            message: JSON.stringify({id: seq, method:"Profiler.start"}),
+                            message: JSON.stringify({id: seq++, method:"Profiler.start"}),
                             sessionId: sessionId
                         });
-                        seq++;
                         await delay(timeout);
                         callbackArray[seq] = rcvProfileStop;
                         Target.sendMessageToTarget({
