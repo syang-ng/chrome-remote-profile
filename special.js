@@ -179,15 +179,7 @@ async function newTab(item, timeout, waitTime) {
                 }
             });
             await delay(waitTime);
-            if(sessions.size >= 15) {
-                await CDP.Close({
-                    host: config.host,
-                    port: config.port,
-                    id: target.id
-                });
-                return;
-            }
-            await Promise.all([
+            Promise.all([
                 (async()=>{
                     /* profile the main thread */
                     await Profiler.setSamplingInterval({interval: 100});
@@ -219,7 +211,7 @@ async function newTab(item, timeout, waitTime) {
             num += sessions.size;
             await new Promise(async (resolve, reject)=>{
                 let count = 0;
-                while (total <= num && count < 100) {
+                while (total <= num && count < 20) {
                     delay(0.5);
                     count++;
                 }
