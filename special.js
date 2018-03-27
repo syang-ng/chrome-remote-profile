@@ -248,8 +248,8 @@ function init() {
     if (program.env != 'production') {
         console.log('test env');
         config.dst = './rerun';
-        delete config['chromePath'];
-        //redisConfig.host = '127.0.0.1';
+        // delete config['chromePath'];
+        // redisConfig.host = '127.0.0.1';
         program.toProfileUrlNums = 1;
     }
 
@@ -308,9 +308,7 @@ async function main() {
                     break;
                 }
             } catch (err){
-   
-
-             console.log('loop error');
+                console.log('loop error');
                 console.error(err);
             } finally {
                 const cmd = `pkill -f port=${config.port}`;
