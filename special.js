@@ -179,13 +179,9 @@ async function newTab(item, timeout, waitTime) {
                 }
             });
             await delay(waitTime);
-            if(sessions.size >= 15) {
-                await CDP.Close({
-                    host: config.host,
-                    port: config.port,
-                    id: target.id
-                });
-                return;
+            let pSessions = Array.from(sessions);
+            if (pSessions.length > 8) {
+                pSessions = pSessions.slice(0, 8);
             }
             await Promise.all([
                 (async()=>{
@@ -198,36 +194,34 @@ async function newTab(item, timeout, waitTime) {
                 })(),
                 (async()=>{
                     /* profile the other thread */
-                    await Promise.map(sessions, async (sessionId)=>{
+                    await Promise.map(pSessions, async (sessionId)=>{
                         await Target.sendMessageToTarget({
-                            message: JSON.stringify({id: seq, method:"Profiler.setSamplingInterval", params:{interval:100}}),
+                            message: JSON.stringify({id: seq++, method:"Profiler.setSamplingInterval", params:{interval:100}}),
                             sessionId: sessionId
                         });           
-                        seq++;
                         await Target.sendMessageToTarget({
-                            message: JSON.stringify({id: seq, method:"Profiler.start"}),
+                            message: JSON.stringify({id: seq++, method:"Profiler.start"}),
                             sessionId: sessionId
                         });
-                        seq++;
                         await delay(timeout);
                         callbackArray[seq] = rcvProfileStop;
                         Target.sendMessageToTarget({
                             message: JSON.stringify({id: seq++, method:"Profiler.stop"}),
                             sessionId: sessionId
                         });
-                    }, {concurrency: 5});
+                    }, {concurrency: 8});
                  })()
             ]);
             num += sessions.size;
             await new Promise(async (resolve, reject)=>{
                 let count = 0;
-                while (total <= num && count < 100) {
-                    delay(0.5);
+                while (total <= num && count < 10) {
+                    await delay(0.5);
                     count++;
                 }
                 resolve();                
             });
-            CDP.Close({
+            await CDP.Close({
                 host: config.host,
                 port: config.port,
                 id: target.id
@@ -293,15 +287,17 @@ async function main() {
                 console.log("App run at %s", formatDateTime(new Date()));
                 console.log('want to fetch '+ toProfileUrlNums + ' urls');
                 const rows = await db.fetchReRunUrls(toProfileUrlNums);
+                /*const rows = [
+                   {id: 1621940, url: 'https://browsermine.com/'}
+		];*/ 
                 console.log('fetch from redis ' + rows.length + ' urls');
                 if (rows.length == 0)
                     break;
                 for (let row of rows) {
-                    newTab(row, timeout, waitTime);
+                    await newTab(row, timeout, waitTime);
                     await delay(interval);
                 }
                 /* delay for kill Chrome */
-                await delay(75);
                 await Promise.all([
                     chrome.kill(),
                     db.close() 
@@ -312,7 +308,9 @@ async function main() {
                     break;
                 }
             } catch (err){
-                console.log('loop error');
+   
+
+             console.log('loop error');
                 console.error(err);
             } finally {
                 const cmd = `pkill -f port=${config.port}`;
