@@ -17,8 +17,6 @@ const { delay, formatDateTime } = require('./utils');
 
 //const writeFile = Promise.promisify(fs.writeFile);
 
-let db;
-
 function writeJson(id, seq, data) {
     const path = util.format('%s/%d_%d.json', config.dst+'/json', id, seq);
     fs.writeFile(path, JSON.stringify(data), (err)=>{
@@ -299,7 +297,7 @@ async function newTab(item, timeout, waitTime) {
                     }, {concurrency: 5});
                 })()
             ]);
-            num+=sessions.size;
+            num += sessions.size;
             await new Promise(async (resolve, reject)=>{
                 let count = 0;
                 while (total <= num && count < 10 && total < 8) {
@@ -336,11 +334,11 @@ function init() {
         console.log('test env');
         config.dst = '/home/lancer/share';
         //redisConfig.host = '127.0.0.1';
-        program.num = 1;
+        program.toProfileUrlNums = 1;
     }
 
     config.chromeFlags = ['--headless'];
-    if(env==='old') {
+    if(env === 'old') {
         config.chromeFlags.push('--no-sandbox');
     }
 
@@ -367,51 +365,30 @@ async function main() {
         /* initial */
         await init();
         const {interval, toProfileUrlNums, timeout, waitTime} = program;
-        /* run as server */
-        do {
-	        try {
-                /* mysql 数据库对象创建 *//* init db */
-                db = new DB(program.num, 300);                
-                /* start Chrome */
-                const chrome = await launcher.launch(config);
-                /* run */
-                console.log('************ begin! ************');
-                console.log("App run at %s", formatDateTime(new Date()));
-                console.log('want to fetch '+ toProfileUrlNums + ' urls');
-                const rows = await db.fetchNewUrlsMaster(toProfileUrlNums);
-                console.log('fetch from redis ' + rows.length + ' urls');
-                if (rows.length == 0)
-                    break;
-                for (let row of rows) {
-                    newTab(row, timeout, waitTime);
-                    await delay(interval);
-                }
-                console.log("App stop at %s", formatDateTime(new Date()));
-                console.log('************ end! ************');
-                /* delay for kill Chrome */
-                await delay(60);
-                await chrome.kill();
-                
-                if (rows.length < toProfileUrlNums)
-                    break;
-                if (program.env != 'production') {
-                    break;
-                }
-            } catch (err){
-                console.error(err);
-            } finally {
-                const cmd = `pkill -f port=${config.port}`;
-                console.log(cmd);
-                let yourscript = exec(cmd, (error, stdout, stderr) => {
-                    console.log(`${stdout}`);
-                    console.log(`${stderr}`);
-                    if (error !== null) {
-                        console.log(`exec error: ${error}`);
-                    }
-                });
-                await db.close();        
-            }
-        } while (true);
+        /* mysql 数据库对象创建 *//* init db */
+        const db = new DB(program.num, 300);                
+        /* start Chrome */
+        const chrome = await launcher.launch(config);
+        /* run */
+        console.log('************ begin! ************');
+        console.log("App run at %s", formatDateTime(new Date()));
+        console.log('want to fetch '+ toProfileUrlNums + ' urls');
+        const rows = await db.fetchNewUrlsMaster(toProfileUrlNums);
+        console.log('fetch from redis ' + rows.length + ' urls');
+        if (rows.length === 0)
+            return;
+        for (let row of rows) {
+            newTab(row, timeout, waitTime);
+            await delay(interval);
+        }
+        /* delay for kill Chrome */
+        await delay(60);
+        console.log("App stop at %s", formatDateTime(new Date()));
+        console.log('************ end! ************');
+        await Promise.all([
+            chrome.kill(),
+            db.close()
+        ]);
     } catch (err) {
         console.error(err);
     } finally {
