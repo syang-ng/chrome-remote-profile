@@ -296,6 +296,7 @@ async function main() {
                         /* start Chrome */                        
                         const chrome = await launcher.launch(config);                        
                         await newTab(row, timeout, waitTime);
+                        console.log(`finish rerun: ${row.url}`);
                         await chrome.kill();
                     } catch (err) {
                         console.error(err)
