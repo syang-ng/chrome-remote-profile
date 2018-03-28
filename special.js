@@ -254,7 +254,7 @@ function init() {
     }
 
     config.chromeFlags = ['--headless'];
-    if(env==='old') {
+    if(env === 'old') {
         config.chromeFlags.push('--no-sandbox');
     }
 
@@ -280,8 +280,6 @@ async function main() {
 	        try {
                 /* init db */
                 const db = new DB(program.num, 300);                
-                /* start Chrome */
-                const chrome = await launcher.launch(config);
                 /* run */
                 console.log('************ begin! ************');
                 console.log("App run at %s", formatDateTime(new Date()));
@@ -294,31 +292,35 @@ async function main() {
                 if (rows.length == 0)
                     break;
                 for (let row of rows) {
-                    await newTab(row, timeout, waitTime);
+                    try {
+                        /* start Chrome */                        
+                        const chrome = await launcher.launch(config);                        
+                        await newTab(row, timeout, waitTime);
+                        await chrome.kill();
+                    } catch (err) {
+                        console.error(err)
+                    } finally {
+                        const cmd = `pkill -f port=${config.port}`;
+                        console.log(cmd);
+                        exec(cmd, (error, stdout, stderr) => {
+                            console.log(`${stdout}`);
+                            console.log(`${stderr}`);
+                            if (error !== null) {
+                                console.log(`exec error: ${error}`);
+                            }
+                        });
+                    }
                 }
                 /* delay for kill Chrome */
-                await Promise.all([
-                    chrome.kill(),
-                    db.close() 
-                ]);
+                await db.close();
                 if (rows.length < toProfileUrlNums)
                     break;
                 if (program.env != 'production') {
                     break;
                 }
             } catch (err){
-                console.log('loop error');
+                console.log('dead loop error');
                 console.error(err);
-            } finally {
-                const cmd = `pkill -f port=${config.port}`;
-                console.log(cmd);
-                exec(cmd, (error, stdout, stderr) => {
-                    console.log(`${stdout}`);
-                    console.log(`${stderr}`);
-                    if (error !== null) {
-                        console.log(`exec error: ${error}`);
-                    }
-                });
             }
         };
     } catch (err) {
