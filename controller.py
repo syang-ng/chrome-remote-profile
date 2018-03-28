@@ -34,14 +34,17 @@ def main():
     port_nums = generate_port_num(num)
     cmds = generate_cmd(port_nums, script, tabs)
     while True:
+        print('loop begin')
         pids = []
-        timer = Timer(600, kill_all)        
+        timer = Timer(600, kill_all)    
         for cmd in cmds:
+            print('run cmd: %s' % (' '.join(cmd)))
             pids.append(subprocess.Popen(cmd))
         timer.start()
         for pid in pids:
             pid.wait()
         timer.cancel()
+        print('loop end')        
     return
 
 if __name__ == '__main__':
