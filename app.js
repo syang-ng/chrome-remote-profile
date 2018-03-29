@@ -235,7 +235,7 @@ async function newTab(item, timeout, waitTime) {
                         message: JSON.stringify({id: seq++, method:'Network.getResponseBody', params:{requestId: message.params.requestId}}),
                         sessionId: obj.sessionId
                     });
-                }else if (message.method !== undefined) {
+                } else if (message.method !== undefined) {
                     callback = callbackMap.get(message.method);
                     if(callback!==undefined) {
                         others = {requestUrls: requestUrls, url: url, deltaTime: deltaTime};
@@ -245,11 +245,11 @@ async function newTab(item, timeout, waitTime) {
                     callback = callbackArray[message.id];
                     if(callback===rcvProfileStop){
                         callback(id, total++, message.result.profile);                      
-                    }else if(callback===rcvDebuggerGetScriptSource){
+                    } else if(callback===rcvDebuggerGetScriptSource) {
                         others = requestArray[message.id];                        
                         callback(message.result.scriptSource, others);
                         delete requestArray[message.id];
-                    }else if(callback===rcvNetworkGetResponseBody){
+                    } else if(callback===rcvNetworkGetResponseBody) {
                         others = requestArray[message.id];
                         if(message.result!==undefined) {                 
                             callback(message.result.body, others);

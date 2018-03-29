@@ -184,6 +184,21 @@ class DB {
         }
         return;
     }
+
+    async finishReRunHistory({id, url, cat, init}) {
+        let sql;
+        if (init !== undefined) {
+            sql = `INSERT INTO \`rerunHistory\` (profilerUrlId, url, cat, init) VALUES (${id}, ${url}, ${cat}, ${init})`;
+        } else {
+            sql = `INSERT INTO \`rerunHistory\` (profilerUrlId, url, cat) VALUES (${id}, ${url}, ${cat})`;            
+        }
+        try {
+            await this.pool.execute(sql);
+        } catch (err) {
+            console.error(err);
+        }
+        return;
+    }
 }
 
 // test function
