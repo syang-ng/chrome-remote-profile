@@ -16,6 +16,8 @@ const { delay, formatDateTime } = require('./utils');
 const writeFile = Promise.promisify(fs.writeFile);
 const chmod = Promise.promisify(fs.chmod);
 
+let db;
+
 async function writeJson(id, seq, data) {
     const path = util.format('%s/%d_%d.json', config.dst, id, seq);
     try {
@@ -47,8 +49,13 @@ async function writeJS(data, id, scriptId) {
     }
 }
 
-const rcvNetworkRequestWillBeSent = function(params, others) {
-    return;
+const rcvNetworkRequestWillBeSent = async function({id, url, initiator}) {
+    await db.finishReRunHistory({
+        id: id,
+        url: url,
+        cat: 'request',
+        init: JSON.stringify(JSON.parse(initiator))
+    });
 }
 
 const rcvDebuggerGetScriptSource = async function(data, others) {
@@ -120,7 +127,8 @@ async function newTab(item, timeout, waitTime) {
             
             await Promise.all([
                 Debugger.enable(),
-                Profiler.enable()
+                Network.enable({maxTotalBufferSize: 10000000, maxResourceBufferSize: 5000000}),
+                Profiler.enable(),
             ]);
 
             await Target.setAutoAttach({autoAttach: true, waitForDebuggerOnStart: false});        
@@ -128,12 +136,22 @@ async function newTab(item, timeout, waitTime) {
             Debugger.scriptParsed(async ({scriptId}) => {
                 try {
                     const {scriptSource} = await Debugger.getScriptSource({scriptId: scriptId});
-                    rcvDebuggerGetScriptSource(scriptSource, {id, scriptId});
+                    await rcvDebuggerGetScriptSource(scriptSource, {id, scriptId});
                 } catch(err) {
                     console.log('script source error!');
                     console.error(err);
                 }
             });
+
+            Network.requestWillBeSent(async ({initiator}) => {
+                await db.finishReRunHistory({
+                    id: id,
+                    url: url,
+                    cat: 'request',
+                    init: JSON.stringify(JSON.parse(initiator))
+                });
+            });
+
             Target.attachedToTarget((obj) => {
                 if (obj.sessionId !== undefined) {
                     let sessionId = obj.sessionId;
@@ -141,6 +159,10 @@ async function newTab(item, timeout, waitTime) {
                     sessions.add(sessionId);
                     Target.sendMessageToTarget({
                         message: JSON.stringify({id: seq++, method:"Debugger.enable"}),
+                        sessionId: sessionId
+                    });
+                    Target.sendMessageToTarget({
+                        message: JSON.stringify({id: seq++, method:"Network.enable", params:{"maxTotalBufferSize":10000000,"maxResourceBufferSize":5000000}}),
                         sessionId: sessionId
                     });
                     Target.sendMessageToTarget({
@@ -166,6 +188,12 @@ async function newTab(item, timeout, waitTime) {
                         message: JSON.stringify({id: seq++, method:"Debugger.getScriptSource", params:{scriptId: message.params.scriptId}}),
                         sessionId: obj.sessionId
                     });
+                } else if (message.method !== undefined) {
+                    callback = callbackMap.get(message.method);
+                    const initiator = message.params.initiator;
+                    if(callback !== undefined) {
+                        await callback({id, url, initiator});
+                    }
                 } else if(message.id !== undefined) {
                     callback = callbackArray[message.id];
                     if (callback === rcvProfileStop){
@@ -275,55 +303,41 @@ async function main() {
         /* initial */
         await init();
         const {interval, toProfileUrlNums, timeout, waitTime} = program;
-        /* run as server */
-        while (true) {
-	        try {
-                /* init db */
-                const db = new DB(program.num, 300);                
-                /* run */
-                console.log('************ begin! ************');
-                console.log("App run at %s", formatDateTime(new Date()));
-                console.log('want to fetch '+ toProfileUrlNums + ' urls');
-                const rows = await db.fetchReRunUrlsMaster(toProfileUrlNums);
-                /*const rows = [
-                   {id: 1621940, url: 'https://browsermine.com/'}
-		];*/ 
-                console.log('fetch from redis ' + rows.length + ' urls');
-                if (rows.length == 0)
-                    break;
-                for (let row of rows) {
-                    try {
-                        /* start Chrome */                        
-                        const chrome = await launcher.launch(config);                        
-                        await newTab(row, timeout, waitTime);
-                        console.log(`finish rerun: ${row.url}`);
-                        await chrome.kill();
-                    } catch (err) {
-                        console.error(err)
-                    } finally {
-                        const cmd = `pkill -f port=${config.port}`;
-                        console.log(cmd);
-                        exec(cmd, (error, stdout, stderr) => {
-                            console.log(`${stdout}`);
-                            console.log(`${stderr}`);
-                            if (error !== null) {
-                                console.log(`exec error: ${error}`);
-                            }
-                        });
+        /* init db */
+        db = new DB(program.num, 300);                
+        /* run */
+        console.log('************ begin! ************');
+        console.log("App run at %s", formatDateTime(new Date()));
+        console.log('want to fetch '+ toProfileUrlNums + ' urls');
+        const rows = await db.fetchReRunUrlsMaster(toProfileUrlNums);
+        /*const rows = [{id: 1621940, url: 'https://browsermine.com/'}];*/ 
+        console.log('fetch from redis ' + rows.length + ' urls');
+        if (rows.length === 0)
+            return;
+        for (let row of rows) {
+            try {
+                /* start Chrome */                        
+                const chrome = await launcher.launch(config);                        
+                await newTab(row, timeout, waitTime);                        
+                await chrome.kill();
+            } catch (err) {
+                console.error(err)
+            } finally {
+                const cmd = `pkill -f port=${config.port}`;
+                console.log(cmd);
+                exec(cmd, (error, stdout, stderr) => {
+                    console.log(`${stdout}`);
+                    console.log(`${stderr}`);
+                    if (error !== null) {
+                        console.log(`exec error: ${error}`);
                     }
-                }
-                /* delay for kill Chrome */
-                await db.close();
-                if (rows.length < toProfileUrlNums)
-                    break;
-                if (program.env != 'production') {
-                    break;
-                }
-            } catch (err){
-                console.log('dead loop error');
-                console.error(err);
+                });
             }
-        };
+        }
+        /* delay for kill Chrome */
+        await db.close();
+        if (program.env != 'production')
+            return;
     } catch (err) {
         console.error(err);
     } finally {
