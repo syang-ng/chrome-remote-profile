@@ -6,7 +6,6 @@ const CDP = require('chrome-remote-interface');
 const md5 = require('md5');
 const exec = require('child_process').exec;
 
-
 // replace the Promise for high performance
 global.Promise = require("bluebird");
 
@@ -16,6 +15,8 @@ const { config,redisConfig } = require('./config');
 const { delay, formatDateTime } = require('./utils');
 
 //const writeFile = Promise.promisify(fs.writeFile);
+
+let db;
 
 function writeJson(id, seq, data) {
     const path = util.format('%s/%d_%d.json', config.dst+'/json', id, seq);
@@ -366,7 +367,7 @@ async function main() {
         await init();
         const {interval, toProfileUrlNums, timeout, waitTime} = program;
         /* mysql 数据库对象创建 *//* init db */
-        const db = new DB(program.num, 300);                
+        db = new DB(program.num, 300);                
         /* start Chrome */
         const chrome = await launcher.launch(config);
         /* run */
