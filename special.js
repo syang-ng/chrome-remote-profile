@@ -54,7 +54,7 @@ const rcvNetworkRequestWillBeSent = async function({id, url, initiator}) {
         id: id,
         url: url,
         cat: 'request',
-        init: JSON.stringify(JSON.parse(initiator))
+        init: JSON.stringify(initiator)
     });
 }
 
@@ -131,7 +131,7 @@ async function newTab(item, timeout, waitTime) {
                 Profiler.enable(),
             ]);
 
-            await Target.setAutoAttach({autoAttach: true, waitForDebuggerOnStart: false});        
+            await Target.setAutoAttach({autoAttach: true, waitForDebuggerOnStart: false}); 
             
             Debugger.scriptParsed(async ({scriptId}) => {
                 try {
@@ -144,12 +144,7 @@ async function newTab(item, timeout, waitTime) {
             });
 
             Network.requestWillBeSent(async ({initiator}) => {
-                await db.finishReRunHistory({
-                    id: id,
-                    url: url,
-                    cat: 'request',
-                    init: JSON.stringify(JSON.parse(initiator))
-                });
+                await rcvNetworkRequestWillBeSent({id, url, initiator});
             });
 
             Target.attachedToTarget((obj) => {
@@ -179,7 +174,6 @@ async function newTab(item, timeout, waitTime) {
             });
             Target.receivedMessageFromTarget(async (obj)=>{
                 const message = JSON.parse(obj.message);
-                const deltaTime = new Date() - initTime;
                 let callback, others;
                 if (message.method === 'Debugger.scriptParsed') {
                     callbackArray[seq] = rcvDebuggerGetScriptSource;
