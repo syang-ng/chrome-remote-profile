@@ -188,9 +188,9 @@ class DB {
     async finishReRunHistory({id, url, cat, init}) {
         let sql;
         if (init !== undefined) {
-            sql = `INSERT INTO \`rerunHistory\` (profilerUrlId, url, cat, init) VALUES (${id}, ${url}, ${cat}, ${init})`;
+            sql = `INSERT INTO \`rerunHistory\` (profilerUrlId, url, cat, init) VALUES (${id}, '${url}', '${cat}', '${init}')`;
         } else {
-            sql = `INSERT INTO \`rerunHistory\` (profilerUrlId, url, cat) VALUES (${id}, ${url}, ${cat})`;            
+            sql = `INSERT INTO \`rerunHistory\` (profilerUrlId, url, cat) VALUES (${id}, '${url}', '${cat}')`;            
         }
         try {
             await this.pool.execute(sql);
