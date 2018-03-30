@@ -49,12 +49,13 @@ async function writeJS(data, id, scriptId) {
     }
 }
 
-const rcvNetworkRequestWillBeSent = async function({id, url, initiator}) {
+const rcvNetworkRequestWillBeSent = async function({id, url, initiator, sourceUrl}) {
     await db.finishReRunHistory({
         id: id,
         url: url,
         cat: 'request',
-        init: JSON.stringify(initiator)
+        init: JSON.stringify(initiator),
+        sourceUrl: sourceUrl
     });
 }
 
@@ -143,8 +144,9 @@ async function newTab(item, timeout, waitTime) {
                 }
             });
 
-            Network.requestWillBeSent(async ({initiator}) => {
-                await rcvNetworkRequestWillBeSent({id, url, initiator});
+            Network.requestWillBeSent(async ({initiator, request}) => {
+                const sourceUrl = request.url;
+                await rcvNetworkRequestWillBeSent({id, url, initiator, sourceUrl});
             });
 
             Target.attachedToTarget((obj) => {
@@ -184,9 +186,10 @@ async function newTab(item, timeout, waitTime) {
                     });
                 } else if (message.method !== undefined) {
                     callback = callbackMap.get(message.method);
-                    const initiator = message.params.initiator;
+                    const {initiator, request} = message.params;
+                    const sourceUrl = request.url;
                     if(callback !== undefined) {
-                        await callback({id, url, initiator});
+                        await callback({id, url, initiator, sourceUrl});
                     }
                 } else if(message.id !== undefined) {
                     callback = callbackArray[message.id];
