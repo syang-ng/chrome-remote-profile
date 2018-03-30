@@ -5,17 +5,21 @@ from threading import Timer
 PKILL_CHROME = ['pkill', 'chrome']
 PKILL_NODE = ['pkill', 'node']
 
+
 def generate_port_num(num):
     if num > 100:
         num = 100
     return [(100 + i) * 100 + 86 for i in range(num)]
 
+
 def generate_cmd(port_array, script, tabs):
     return [['node', script, '-P', str(i), '-N', str(tabs)] for i in port_array]
+
 
 def kill_all():
     subprocess.call(PKILL_NODE)
     subprocess.call(PKILL_CHROME)
+
 
 def init():
     script = 'app.js'
@@ -32,6 +36,7 @@ def init():
         timeout = int(sys.argv[4])
     return [script, num, tabs, timeout]
 
+
 def main():
     [script, num, tabs, timeout] = init()
     port_nums = generate_port_num(num)
@@ -39,7 +44,7 @@ def main():
     while True:
         print('loop begin')
         pids = []
-        timer = Timer(timeout, kill_all)    
+        timer = Timer(timeout, kill_all)
         for cmd in cmds:
             print('run cmd: %s' % (' '.join(cmd)))
             pids.append(subprocess.Popen(cmd))
@@ -47,8 +52,9 @@ def main():
         for pid in pids:
             pid.wait()
         timer.cancel()
-        print('loop end')        
+        print('loop end')
     return
+
 
 if __name__ == '__main__':
     main()
