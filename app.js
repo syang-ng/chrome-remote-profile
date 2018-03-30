@@ -11,7 +11,7 @@ global.Promise = require("bluebird");
 
 const DB = require('./db');
 const { env } = require('./env');
-const { config,redisConfig } = require('./config');
+const { config, redisConfig } = require('./config');
 const { delay, formatDateTime } = require('./utils');
 
 //const writeFile = Promise.promisify(fs.writeFile);
@@ -19,48 +19,47 @@ const { delay, formatDateTime } = require('./utils');
 let db;
 
 function writeJson(id, seq, data) {
-    const path = util.format('%s/%d_%d.json', config.dst+'/json', id, seq);
-    fs.writeFile(path, JSON.stringify(data), (err)=>{
-	    if (err) {
+    const path = util.format('%s/%d_%d.json', config.dst + '/json', id, seq);
+    fs.writeFile(path, JSON.stringify(data), (err) => {
+        if (err) {
             console.log(err);
-	    } else {
+        } else {
             const stat = fs.statSync(path);
             // if belongs to user and then chmod
             if (stat.uid === process.getuid()) {
-                fs.chmod(path, '666',(err)=>{
+                fs.chmod(path, '666', (err) => {
                     if (err) console.log(err);
                 });
             }
-    	}
+        }
     });
-    return;
 }
 
 function writeJS(data, fileMd5, url) {
     // No JS
-     return;
+    return;
     // TODO accessdb
-    if (!(url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css')|| url.endsWith('.html') || url.endsWith('.htm') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?'))){
-        const path = util.format('%s/file_%s', config.dst+'/hash', fileMd5);
+    if (!(url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css') || url.endsWith('.html') || url.endsWith('.htm') || url.endsWith('.svg') || url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?') || url.includes('.gif?') || url.includes('.jpg?'))) {
+        const path = util.format('%s/file_%s', config.dst + '/hash', fileMd5);
         // if exist; return;
         if (fs.existsSync(path)) {
             return;
         }
-        fs.writeFile(path, data,(err)=>{
+        fs.writeFile(path, data, (err) => {
             if (err) {
                 console.log(err);
             } else {
-                fs.chmod(path, '666',(err)=>{
+                fs.chmod(path, '666', (err) => {
                     if (err) {
                         console.log(err);
                     }
                 });
             }
         });
-	}
+    }
 }
 
-const rcvNetworkRequestWillBeSent = function(params, others) {
+const rcvNetworkRequestWillBeSent = function (params, others) {
     others.requestUrls.push({
         'url': others.url,
         'time': others.deltaTime,
@@ -70,7 +69,7 @@ const rcvNetworkRequestWillBeSent = function(params, others) {
     });
 }
 
-const rcvDebuggerGetScriptSource = function(data, others) {
+const rcvDebuggerGetScriptSource = function (data, others) {
     /*
     // return if data is null or undefined
     if (data === undefined || data === null) {
@@ -88,7 +87,7 @@ const rcvDebuggerGetScriptSource = function(data, others) {
     */
 }
 
-const rcvNetworkGetResponseBody = function(data, others) {
+const rcvNetworkGetResponseBody = function (data, others) {
     // return if data is null or undefined
     if (data === undefined || data === null) {
         return;
@@ -96,15 +95,15 @@ const rcvNetworkGetResponseBody = function(data, others) {
     const fileMd5 = md5(data);
     others.requestUrls.push({
         'url': others.url,
-        'time':others.deltaTime,
+        'time': others.deltaTime,
         'requestUrl': others.requestUrl,
-        'category':'response',
+        'category': 'response',
         'fileHash': fileMd5
     });
     //writeJS(data, fileMd5, others.requestUrl);
 }
 
-const rcvProfileStop = function(id, seq, data) {
+const rcvProfileStop = function (id, seq, data) {
     writeJson(id, seq, data);
 }
 
@@ -120,7 +119,7 @@ program
     .option('-W --waitTime <time>', 'the delay time to wait for website loading', 20)
     .option('-I --interval <time>', 'the interval of each tab', 2)
     .option('-N --num <number>', 'the number of tab to profile before chrome restart', 1000)
-//.option('-N --num <number>', 'the number of tab profiler per hour', 3600)
+    //.option('-N --num <number>', 'the number of tab profiler per hour', 3600)
     .option('-E --env <env>', 'the environment', 'production');
 
 /* profiler the special url with new tab */
@@ -142,55 +141,88 @@ async function newTab(item, timeout, waitTime) {
                 port: config.port,
                 target: target
             });
-            
+
             let num = 0;
             let seq = 1;
-            let total = 1;            
+            let total = 1;
             const callbackArray = new Array();
             const sessions = new Set();
             const requestUrls = [];
             const initTime = new Date();
             const requestArray = new Array();
-            
-            const {Debugger, Network, Target, Profiler} = client;
-            
+
+            const {
+                Debugger,
+                Network,
+                Target,
+                Profiler
+            } = client;
+
             await Promise.all([
                 Debugger.enable(),
-                Network.enable({maxTotalBufferSize: 10000000, maxResourceBufferSize: 5000000}),
+                Network.enable({
+                    maxTotalBufferSize: 10000000,
+                    maxResourceBufferSize: 5000000
+                }),
                 Profiler.enable()
             ]);
 
-            await Target.setAutoAttach({autoAttach: true, waitForDebuggerOnStart: false});        
-            
+            await Target.setAutoAttach({
+                autoAttach: true,
+                waitForDebuggerOnStart: false
+            });
+
             Network.requestWillBeSent((params) => {
-                let deltaTime = new Date() - initTime;                
-                let others = {requestUrls: requestUrls, url: url, deltaTime: deltaTime}
+                let deltaTime = new Date() - initTime;
+                let others = {
+                    requestUrls: requestUrls,
+                    url: url,
+                    deltaTime: deltaTime
+                }
                 rcvNetworkRequestWillBeSent(params, others);
             });
-            
+
             Network.responseReceived(async (params) => {
                 let deltaTime = new Date() - initTime;
-                let others = {requestUrls: requestUrls, url: url, deltaTime: deltaTime, requestUrl: params.response.url};
+                let others = {
+                    requestUrls: requestUrls,
+                    url: url,
+                    deltaTime: deltaTime,
+                    requestUrl: params.response.url
+                };
                 try {
-                    const {body} = await Network.getResponseBody({requestId: params.requestId});
+                    const {
+                        body
+                    } = await Network.getResponseBody({
+                        requestId: params.requestId
+                    });
                     rcvNetworkGetResponseBody(body, others);
                 } catch (err) {
                     console.error(err);
                 }
             });
-            
+
             Debugger.scriptParsed(async (params) => {
                 // TODO handle errors
                 let deltaTime = new Date() - initTime;
-                let others = {requestUrls: requestUrls, url: url, deltaTime: deltaTime, requestUrl: params.url};
+                let others = {
+                    requestUrls: requestUrls,
+                    url: url,
+                    deltaTime: deltaTime,
+                    requestUrl: params.url
+                };
                 try {
-                    const {scriptSource} = await Debugger.getScriptSource({scriptId: params.scriptId});
+                    const {
+                        scriptSource
+                    } = await Debugger.getScriptSource({
+                        scriptId: params.scriptId
+                    });
                     rcvDebuggerGetScriptSource(scriptSource, others);
-                } catch(err) {
+                } catch (err) {
                     console.error(err);
                 }
             });
-            
+
             Target.attachedToTarget((obj) => {
                 if (obj.sessionId !== undefined) {
                     let sessionId = obj.sessionId;
@@ -198,15 +230,28 @@ async function newTab(item, timeout, waitTime) {
                     sessions.add(sessionId);
 
                     Target.sendMessageToTarget({
-                        message: JSON.stringify({id: seq++, method:"Debugger.enable"}),
+                        message: JSON.stringify({
+                            id: seq++,
+                            method: "Debugger.enable"
+                        }),
                         sessionId: sessionId
                     });
                     Target.sendMessageToTarget({
-                        message: JSON.stringify({id: seq++, method:"Network.enable", params:{"maxTotalBufferSize":10000000,"maxResourceBufferSize":5000000}}),
+                        message: JSON.stringify({
+                            id: seq++,
+                            method: "Network.enable",
+                            params: {
+                                "maxTotalBufferSize": 10000000,
+                                "maxResourceBufferSize": 5000000
+                            }
+                        }),
                         sessionId: sessionId
                     });
                     Target.sendMessageToTarget({
-                        message: JSON.stringify({id: seq++, method:"Profiler.enable"}),
+                        message: JSON.stringify({
+                            id: seq++,
+                            method: "Profiler.enable"
+                        }),
                         sessionId: sessionId
                     });
                 }
@@ -217,51 +262,77 @@ async function newTab(item, timeout, waitTime) {
                     sessions.delete(obj.sessionId);
                 }
             });
-            Target.receivedMessageFromTarget((obj)=>{
+            Target.receivedMessageFromTarget((obj) => {
                 const message = JSON.parse(obj.message);
                 const deltaTime = new Date() - initTime;
                 let callback, others;
                 if (message.method === 'Debugger.scriptParsed') {
                     callbackArray[seq] = rcvDebuggerGetScriptSource;
-                    requestArray[seq] = {requestUrls: requestUrls, url: url, deltaTime: deltaTime, requestUrl: message.params.url};
+                    requestArray[seq] = {
+                        requestUrls: requestUrls,
+                        url: url,
+                        deltaTime: deltaTime,
+                        requestUrl: message.params.url
+                    };
                     Target.sendMessageToTarget({
-                        message: JSON.stringify({id: seq++, method:"Debugger.getScriptSource", params:{scriptId: message.params.scriptId}}),
+                        message: JSON.stringify({
+                            id: seq++,
+                            method: "Debugger.getScriptSource",
+                            params: {
+                                scriptId: message.params.scriptId
+                            }
+                        }),
                         sessionId: obj.sessionId
                     });
                 } else if (message.method === 'Network.responseReceived') {
                     callbackArray[seq] = rcvNetworkGetResponseBody;
-                    requestArray[seq] = {requestUrls: requestUrls, url: url, deltaTime: deltaTime, requestUrl: message.params.response.url};
+                    requestArray[seq] = {
+                        requestUrls: requestUrls,
+                        url: url,
+                        deltaTime: deltaTime,
+                        requestUrl: message.params.response.url
+                    };
                     Target.sendMessageToTarget({
-                        message: JSON.stringify({id: seq++, method:'Network.getResponseBody', params:{requestId: message.params.requestId}}),
+                        message: JSON.stringify({
+                            id: seq++,
+                            method: 'Network.getResponseBody',
+                            params: {
+                                requestId: message.params.requestId
+                            }
+                        }),
                         sessionId: obj.sessionId
                     });
                 } else if (message.method !== undefined) {
                     callback = callbackMap.get(message.method);
-                    if(callback!==undefined) {
-                        others = {requestUrls: requestUrls, url: url, deltaTime: deltaTime};
+                    if (callback !== undefined) {
+                        others = {
+                            requestUrls: requestUrls,
+                            url: url,
+                            deltaTime: deltaTime
+                        };
                         callback(message.params, others);
                     }
-                } else if(message.id !== undefined) {
+                } else if (message.id !== undefined) {
                     callback = callbackArray[message.id];
-                    if(callback===rcvProfileStop){
-                        callback(id, total++, message.result.profile);                      
-                    } else if(callback===rcvDebuggerGetScriptSource) {
-                        others = requestArray[message.id];                        
+                    if (callback === rcvProfileStop) {
+                        callback(id, total++, message.result.profile);
+                    } else if (callback === rcvDebuggerGetScriptSource) {
+                        others = requestArray[message.id];
                         callback(message.result.scriptSource, others);
                         delete requestArray[message.id];
-                    } else if(callback===rcvNetworkGetResponseBody) {
+                    } else if (callback === rcvNetworkGetResponseBody) {
                         others = requestArray[message.id];
-                        if(message.result!==undefined) {                 
+                        if (message.result !== undefined) {
                             callback(message.result.body, others);
                         }
-                        delete requestArray[message.id];                        
+                        delete requestArray[message.id];
                     }
                     delete callbackArray[message.id];
                 }
             });
             await delay(waitTime);
-            if(sessions.size >= 15) {
-                await db.finishProfile(id, sessions.size + 1, requestUrls);                
+            if (sessions.size >= 15) {
+                await db.finishProfile(id, sessions.size + 1, requestUrls);
                 await CDP.Close({
                     host: config.host,
                     port: config.port,
@@ -270,42 +341,60 @@ async function newTab(item, timeout, waitTime) {
                 return;
             }
             await Promise.all([
-                (async()=>{
+                (async () => {
                     /* profile the main thread */
-                    await Profiler.setSamplingInterval({interval: 100});
+                    await Profiler.setSamplingInterval({
+                        interval: 100
+                    });
                     await Profiler.start();
                     await delay(timeout);
-                    const {profile} = await Profiler.stop();
+                    const {
+                        profile
+                    } = await Profiler.stop();
                     writeJson(id, 0, profile);
                 })(),
-                (async()=>{
+                (async () => {
                     /* profile the other thread */
-                    await Promise.map(sessions, async (sessionId)=>{
+                    await Promise.map(sessions, async (sessionId) => {
                         await Target.sendMessageToTarget({
-                            message: JSON.stringify({id: seq++, method:"Profiler.setSamplingInterval", params:{interval:100}}),
+                            message: JSON.stringify({
+                                id: seq++,
+                                method: "Profiler.setSamplingInterval",
+                                params: {
+                                    interval: 100
+                                }
+                            }),
                             sessionId: sessionId
-                        });           
+                        });
                         await Target.sendMessageToTarget({
-                            message: JSON.stringify({id: seq++, method:"Profiler.start"}),
+                            message: JSON.stringify({
+                                id: seq++,
+                                method: "Profiler.start"
+                            }),
                             sessionId: sessionId
                         });
                         await delay(timeout);
                         callbackArray[seq] = rcvProfileStop;
                         Target.sendMessageToTarget({
-                            message: JSON.stringify({id: seq++, method:"Profiler.stop"}),
+                            message: JSON.stringify({
+                                id: seq++,
+                                method: "Profiler.stop"
+                            }),
                             sessionId: sessionId
                         });
-                    }, {concurrency: 5});
+                    }, {
+                        concurrency: 5
+                    });
                 })()
             ]);
             num += sessions.size;
-            await new Promise(async (resolve, reject)=>{
+            await new Promise(async (resolve, reject) => {
                 let count = 0;
                 while (total <= num && count < 10 && total < 8) {
                     await delay(0.5);
                     count++;
                 }
-                resolve();                
+                resolve();
             });
             await Promise.all([
                 CDP.Close({
@@ -325,10 +414,10 @@ async function newTab(item, timeout, waitTime) {
         const cmd = `pkill -f port=${config.port}`;
         console.log(cmd);
         exec(cmd, (error, stdout, stderr) => {
-            console.log(`${stdout}`);                   
+            console.log(`${stdout}`);
             console.log(`${stderr}`);
             if (error !== null) {
-                console.log(`exec error: ${error}`);       
+                console.log(`exec error: ${error}`);
             }
         });
     }
@@ -340,7 +429,7 @@ function init() {
     config.dst = program.dst;
     config.port = program.port;
     program.interval = parseInt(program.interval);
-    program.toProfileUrlNums = parseInt(program.num);    
+    program.toProfileUrlNums = parseInt(program.num);
 
     if (program.env != 'production') {
         console.log('test env');
@@ -350,22 +439,22 @@ function init() {
     }
 
     config.chromeFlags = ['--headless'];
-    if(env === 'old') {
+    if (env === 'old') {
         config.chromeFlags.push('--no-sandbox');
     }
 
     /* 并发执行 提高效率 */
     return Promise.all([
-        /* 检查目的文件夹是否存在 */        
-        new Promise((resolve)=>{
+        /* 检查目的文件夹是否存在 */
+        new Promise((resolve) => {
             if (!fs.existsSync(config.dst)) {
                 fs.mkdirSync(config.dst);
             }
-            if (!fs.existsSync(config.dst+'/hash')) {
-                fs.mkdirSync(config.dst+'/hash');
+            if (!fs.existsSync(config.dst + '/hash')) {
+                fs.mkdirSync(config.dst + '/hash');
             }
-            if (!fs.existsSync(config.dst+'/json')) {
-                fs.mkdirSync(config.dst+'/json');
+            if (!fs.existsSync(config.dst + '/json')) {
+                fs.mkdirSync(config.dst + '/json');
             }
             resolve();
         })
@@ -376,15 +465,21 @@ async function main() {
     try {
         /* initial */
         await init();
-        const {interval, toProfileUrlNums, timeout, waitTime} = program;
-        /* mysql 数据库对象创建 *//* init db */
-        db = new DB(program.num, 300);                
+        const {
+            interval,
+            toProfileUrlNums,
+            timeout,
+            waitTime
+        } = program;
+        /* mysql 数据库对象创建 */
+        /* init db */
+        db = new DB(program.num, 300);
         /* start Chrome */
         const chrome = await launcher.launch(config);
         /* run */
         console.log('************ begin! ************');
         console.log("App run at %s", formatDateTime(new Date()));
-        console.log('want to fetch '+ toProfileUrlNums + ' urls');
+        console.log('want to fetch ' + toProfileUrlNums + ' urls');
         const rows = await db.fetchNewUrlsMaster(toProfileUrlNums);
         console.log('fetch from redis ' + rows.length + ' urls');
         if (rows.length === 0)
@@ -404,11 +499,11 @@ async function main() {
     } catch (err) {
         console.error(err);
     } finally {
-        process.exit();                
+        process.exit();
     }
 }
 
-process.on("uncatchException", function(err) {
+process.on("uncatchException", function (err) {
     console.error(err);
 });
 
