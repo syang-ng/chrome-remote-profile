@@ -411,15 +411,6 @@ async function newTab(item, timeout, waitTime) {
         if (client) {
             await client.close();
         }
-        const cmd = `pkill -f port=${config.port}`;
-        console.log(cmd);
-        exec(cmd, (error, stdout, stderr) => {
-            console.log(`${stdout}`);
-            console.log(`${stderr}`);
-            if (error !== null) {
-                console.log(`exec error: ${error}`);
-            }
-        });
     }
 }
 
