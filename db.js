@@ -199,6 +199,58 @@ class DB {
         }
         return;
     }
+
+    async fetchTimeSpaceUrls({round}) {
+        const sql = `select * from timeSpaceVisit where round = ${round}`;
+        try {
+            const [row] = await this.pool.query(sql);
+            return row;
+        } catch (err) {
+            console.error(err);
+            return [];
+        }
+    }
+
+    async updateTimeSpaceUrls({id, threads}) {
+        const sql = `UPDATE \`timeSpaceVisit\` SET threads='${threads}' WHERE id = ${id}`;
+        try {
+            await this.pool.execute(sql);
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    async finishTimeSpaceHistory({id, url, cat, init, sourceUrl, frames}) {
+        const obj = {
+            profilerUrlId: id,
+            url: url,
+            cat: cat,
+            init: init,
+            sourceUrl: sourceUrl,
+            frames: frames
+        };
+
+        let sql = `INSERT INTO \`timeSpaceHistory\` (;`
+        for(let key in obj){
+            if(obj[key] !== undefined) {
+                sql += key;
+            }
+        }
+        sql += ') VALUES (';
+        for(let key in obj){
+            if(obj[key] !== undefined) {
+                sql += obj[key].toString();                    
+            }
+        }
+        sql += ')';
+        console.log(sql);
+        try {
+            await this.pool.execute(sql);
+        } catch (err) {
+            console.error(err);
+        }
+        return;
+    }
 }
 
 // test function
@@ -212,13 +264,26 @@ async function testRedis() {
     for (let i = 0; i < 2; i++) {
         res = await db.fetchNewUrlsMaster(1000);
         for (let e in res) {
-
             console.log(res[e]);
         }
         console.log(typeof res);
         console.log(res.length);
     }
 }
+
+async function testDB() {
+    let db;
+    try {
+        db = new DB();
+    } catch (error) {
+        console.log(error);
+    }
+    const ret = await db.fetchTimeSpaceUrls();
+    for(let item of ret) {
+        console.log(JSON.stringify(item));
+    } 
+}
 //testRedis();
+testDB();
 
 module.exports = DB;
