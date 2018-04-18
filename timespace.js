@@ -31,13 +31,12 @@ async function writeJson(id, seq, data) {
     return;
 }
 
-async function writeJS(data, id, url) {
+async function writeJS(data, id, scriptId) {
     // TODO accessdb
     if (!url || url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?')) {
        return;
     }
-    const fileName = new Buffer(url).toString('base64');
-    const path = util.format('%s/%d/%s', config.dst, id, fileName);
+    const path = `${config.dst}/${id}/${scriptId}`;
     try {
         await writeFile(path, JSON.stringify(data));
         const stat = fs.statSync(path);
@@ -83,8 +82,8 @@ const rcvDebuggerGetScriptSource = async function(data, others) {
     if (!data || data.length === 0) {
         return;
     }
-    const {id, url} = others;
-    await writeJS(data, id, url);
+    const {id, scriptId} = others;
+    await writeJS(data, id, scriptId);
 }
 
 const rcvNetworkGetResponseBody = function(data, others) {
@@ -153,16 +152,16 @@ async function newTab(item, timeout, waitTime) {
 
             await Target.setAutoAttach({autoAttach: true, waitForDebuggerOnStart: false}); 
             
-            Debugger.scriptParsed(async ({scriptId, url}) => {
+            Debugger.scriptParsed(async ({scriptId}) => {
                 try {
                     const {scriptSource} = await Debugger.getScriptSource({scriptId: scriptId});
-                    await rcvDebuggerGetScriptSource(scriptSource, {id, url});
+                    await rcvDebuggerGetScriptSource(scriptSource, {id, scriptId});
                 } catch(err) {
                     console.error(err);
                 }
             });
 
-            Network.requestWillBeSent(async ({requestId, request}) => {
+            Network.requestWillBeSent(async ({requestId, request, initiator}) => {
                 const sourceUrl = request.url;
                 await rcvNetworkRequestWillBeSent({id, url, initiator, sourceUrl, requestId});
             });
@@ -213,7 +212,7 @@ async function newTab(item, timeout, waitTime) {
                 let callback, others;
                 if (message.method === 'Debugger.scriptParsed') {
                     callbackArray[seq] = rcvDebuggerGetScriptSource;
-                    paramsArray[seq] = {id: id, scriptId: message.params.url};
+                    paramsArray[seq] = {id: id, scriptId: message.params.scriptId};
                     Target.sendMessageToTarget({
                         message: JSON.stringify({id: seq++, method:"Debugger.getScriptSource", params:{scriptId: message.params.scriptId}}),
                         sessionId: obj.sessionId
