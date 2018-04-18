@@ -240,7 +240,7 @@ async function newTab(item, timeout, waitTime) {
                  })()
             ]);
             num += sessions.size;
-            await db.updateTimeSpaceUrls({id, threads: sessions.size+1});
+            await db.updateRerunUrl({id, threads: sessions.size+1});
             await new Promise(async (resolve, reject)=>{
                 let count = 0;
                 while (total <= num && count < 10) {
@@ -309,8 +309,8 @@ async function main() {
         console.log('************ begin! ************');
         console.log("App run at %s", formatDateTime(new Date()));
         console.log('want to fetch '+ toProfileUrlNums + ' urls');
-        //const rows = await db.fetchReRunUrlsMaster(toProfileUrlNums);
-        const rows = [{id: 1621940, url: 'http://polishsites.pl'}];
+        const rows = await db.fetchReRunUrlsMaster(toProfileUrlNums);
+        //const rows = [{id: 1621940, url: 'http://polishsites.pl'}];
         console.log('fetch from redis ' + rows.length + ' urls');
         if (rows.length === 0)
             return;
