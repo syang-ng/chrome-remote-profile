@@ -350,7 +350,7 @@ async function main() {
         db = new DB(program.num, 300);                
         /* run */
         console.log('************ begin! ************');
-        const rows = await db.fetchTimeSpaceUrls(round);
+        const rows = await db.fetchTimeSpaceUrls({round});
         /*const rows = [{id: 1621940, url: 'https://browsermine.com/'}];*/ 
         for (let row of rows) {
             try {
