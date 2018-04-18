@@ -202,10 +202,8 @@ class DB {
 
     async fetchTimeSpaceUrls({round}) {
         const sql = `select * from timeSpaceVisit where round = ${round}`;
-        try {
-            const conn = await this.pool.getConnection();            
-            const [row] = await conn.query(sql);
-            await conn.release();
+        try {          
+            const [row] = await this.pool.query(sql);    
             return row;
         } catch (err) {
             console.error(err);
@@ -216,9 +214,7 @@ class DB {
     async updateTimeSpaceUrls({id, threads}) {
         const sql = `UPDATE \`timeSpaceVisit\` SET threads='${threads}' WHERE id = ${id}`;
         try {
-            const conn = await this.pool.getConnection();            
-            await conn.execute(sql);
-            await conn.release();
+            await this.pool.execute(sql);
         } catch (err) {
             console.error(err);
         }
@@ -246,9 +242,7 @@ class DB {
         }
         const sql = `INSERT INTO \`timeSpaceHistory\` (${keys.join(', ')}) VALUES (${values.join(', ')})`;
         try {
-            const conn = await this.pool.getConnection();
-            await conn.execute(sql);
-            await conn.release();
+            await this.pool.execute(sql);
         } catch (err) {
             console.error(err);
         }
@@ -286,6 +280,6 @@ async function testDB() {
     } 
 }
 //testRedis();
-testDB();
+//testDB();
 
 module.exports = DB;

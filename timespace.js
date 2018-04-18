@@ -357,19 +357,20 @@ async function main() {
         /* init */        
         await init();
         const {interval, timeout, waitTime, round} = program;
-        db = new DB(program.num, 300);                
         /* run */
         console.log('************ begin! ************');
         const rows = await db.fetchTimeSpaceUrls({round});
-        /*const rows = [{id: 1621940, url: 'https://browsermine.com/'}];*/ 
+        /*const rows = [{id: 1621940, url: 'https://browsermine.com/'}];*/
         for (let row of rows) {
             try {
-                const chrome = await launcher.launch(config);                        
+                db = new DB(program.num, 300);                    
+                const chrome = await launcher.launch(config);
                 await newTab(row, timeout, waitTime);                        
                 await chrome.kill();
             } catch (err) {
                 console.error(err)
             } finally {
+                await db.close();                
                 const cmd = `pkill -f port=${config.port}`;
                 console.log(cmd);
                 exec(cmd, (error, stdout, stderr) => {
@@ -381,7 +382,6 @@ async function main() {
                 });
             }
         }
-        await db.close();
     } catch (err) {
         console.error(err);
     } finally {
