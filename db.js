@@ -220,36 +220,33 @@ class DB {
         }
     }
 
-    async finishTimeSpaceHistory({id, url, cat, init, sourceUrl, frames}) {
+    async finishTimeSpaceHistory({id, url, cat, init, sourceUrl, frames, requestId}) {
+        const time = formatDateTime(new Date());
         const obj = {
             profilerUrlId: id,
+            time: time,
             url: url,
+            requestId, requestId,
             cat: cat,
             init: init,
             sourceUrl: sourceUrl,
             frames: frames
         };
-
-        let sql = `INSERT INTO \`timeSpaceHistory\` (;`
+        const keys = [];
+        const values = [];
         for(let key in obj){
             if(obj[key] !== undefined) {
-                sql += key;
+                keys.push(key);
+                values.push(`'${obj[key].toString()}'`);                                    
             }
         }
-        sql += ') VALUES (';
-        for(let key in obj){
-            if(obj[key] !== undefined) {
-                sql += obj[key].toString();                    
-            }
-        }
-        sql += ')';
+        const sql = `INSERT INTO \`timeSpaceHistory\` (${keys.join(', ')}) VALUES (${values.join(', ')})`;
         console.log(sql);
         try {
             await this.pool.execute(sql);
         } catch (err) {
             console.error(err);
         }
-        return;
     }
 }
 
