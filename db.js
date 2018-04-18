@@ -220,6 +220,15 @@ class DB {
         }
     }
 
+    async updateRerunUrl({id, threads}) {
+        const sql = `UPDATE \`rerunUrl\` SET threads='${threads}' WHERE id = ${id}`;
+        try {
+            await this.pool.execute(sql);
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
     async finishTimeSpaceHistory({id, url, cat, init, sourceUrl, frames, requestId}) {
         const time = formatDateTime(new Date());
         const obj = {
