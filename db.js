@@ -281,6 +281,6 @@ async function testDB() {
     } 
 }
 //testRedis();
-testDB();
+//testDB();
 
 module.exports = DB;
