@@ -111,6 +111,7 @@ program
     .option('-W --waitTime <time>', 'the delay time to wait for website loading', 20)
     .option('-I --interval <time>', 'the interval of each tab', 5)
     .option('-R --round <number>', 'current round', 0)
+    .option('-N --num <number>', 'the number of tab to profile before chrome restart', 100)   
     .option('-E --env <env>', 'the environment', 'production');
 
 /* profiler the special url with new tab */
@@ -132,7 +133,7 @@ async function newTab(item, timeout, waitTime) {
                 port: config.port,
                 target: target
             });
-            mkSubDir(id);
+            mkSubDir({id});
             let seq = 1;
             let total = 1;
             let websocket = undefined;
@@ -345,11 +346,11 @@ async function main() {
     try {
         /* init */        
         await init();
-        const {interval, timeout, waitTime} = program;
+        const {interval, timeout, waitTime, round} = program;
         db = new DB(program.num, 300);                
         /* run */
         console.log('************ begin! ************');
-        const rows = await db.fetchTimeSpaceUrls();
+        const rows = await db.fetchTimeSpaceUrls(round);
         /*const rows = [{id: 1621940, url: 'https://browsermine.com/'}];*/ 
         for (let row of rows) {
             try {
