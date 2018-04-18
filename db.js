@@ -2,7 +2,7 @@ const mysql = require('mysql2/promise');
 const redis = require('redis')
 
 const { dbConfig, redisConfig } = require('./config');
-const { formatDateTime } = require('./utils');
+const { formatDateTime, formatStr } = require('./utils');
 
 
 class DB {
@@ -237,11 +237,10 @@ class DB {
         for(let key in obj){
             if(obj[key] !== undefined) {
                 keys.push(key);
-                values.push(`'${obj[key].toString()}'`);                                    
+                values.push(`'${formatStr(obj[key].toString())}'`);                                    
             }
         }
         const sql = `INSERT INTO \`timeSpaceHistory\` (${keys.join(', ')}) VALUES (${values.join(', ')})`;
-        console.log(sql);
         try {
             await this.pool.execute(sql);
         } catch (err) {

@@ -10,7 +10,7 @@ global.Promise = require("bluebird");
 const DB = require('./db');
 const { env } = require('./env');
 const { config,redisConfig } = require('./config');
-const { delay, formatDateTime, formatStr } = require('./utils');
+const { delay, formatDateTime} = require('./utils');
 
 const writeFile = Promise.promisify(fs.writeFile);
 const chmod = Promise.promisify(fs.chmod);
@@ -60,7 +60,7 @@ const rcvNetworkRequestWillBeSent = async function({id, url, initiator, sourceUr
         id: id,
         url: url,
         cat: 'request',
-        init: formatStr(JSON.stringify(initiator)),
+        init: JSON.stringify(initiator),
         sourceUrl: sourceUrl,
         requestId
     });
@@ -73,7 +73,7 @@ const rcvNetworkResponseReceived = async function({id, url, response, requestId}
         requestId,
         sourceUrl: response.url,
         cat: 'response',
-        init: formatStr(JSON.stringify(response)),
+        init: JSON.stringify(response),
     });
 }
 
