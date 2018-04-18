@@ -50,8 +50,6 @@ async function writeJS(data, id, scriptId) {
 }
 
 const rcvNetworkRequestWillBeSent = async function({id, url, initiator, sourceUrl}) {
-    console.log(sourceUrl);
-    return;
     await db.finishReRunHistory({
         id: id,
         url: url,
@@ -240,14 +238,14 @@ async function newTab(item, timeout, waitTime) {
                  })()
             ]);
             num += sessions.size;
-            await db.updateRerunUrl({id, threads: sessions.size+1});
+            await db.updateRerunUrl({id, threads: num + 1});
             await new Promise(async (resolve, reject)=>{
                 let count = 0;
                 while (total <= num && count < 10) {
                     await delay(0.5);
                     count++;
                 }
-                resolve();
+                resolve();                
             });
             await CDP.Close({
                 host: config.host,
@@ -276,7 +274,7 @@ function init() {
     if (program.env != 'production') {
         console.log('test env');
         config.dst = './rerun';
-        delete config['chromePath'];
+        // delete config['chromePath'];
         // redisConfig.host = '127.0.0.1';
         program.toProfileUrlNums = 1;
     }
@@ -310,7 +308,7 @@ async function main() {
         console.log("App run at %s", formatDateTime(new Date()));
         console.log('want to fetch '+ toProfileUrlNums + ' urls');
         const rows = await db.fetchReRunUrlsMaster(toProfileUrlNums);
-        //const rows = [{id: 1621940, url: 'http://polishsites.pl'}];
+        /*const rows = [{id: 1621940, url: 'https://browsermine.com/'}];*/ 
         console.log('fetch from redis ' + rows.length + ' urls');
         if (rows.length === 0)
             return;
