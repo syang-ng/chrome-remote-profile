@@ -71,14 +71,18 @@ const rcvNetworkRequestWillBeSent = async function({id, url, initiator, sourceUr
 }
 
 const rcvNetworkResponseReceived = async function({id, url, response, requestId}) {
-    await db.finishTimeSpaceHistory({
-        id,
-        url,
-        requestId,
-        sourceUrl: response.url,
-        cat: 'response',
-        init: JSON.stringify(response),
-    });
+    try {
+        await db.finishTimeSpaceHistory({
+            id,
+            url,
+            requestId,
+            sourceUrl: response.url,
+            cat: 'response',
+            init: JSON.stringify(response),
+        });
+    } catch(err) {
+        ;
+    }
 }
 
 const rcvDebuggerGetScriptSource = async function(data, others) {
@@ -281,14 +285,14 @@ async function newTab(item, timeout, waitTime) {
                  })()
             ]);
             await Promise.all([
-                db.updateTimeSpaceUrls({id: id, threads: sessions.size}),
+                db.updateTimeSpaceUrls({id: id, threads: sessions.size+1}),
                 new Promise(async (resolve, reject)=>{
                     if(websocket !== undefined) {
                         await db.finishTimeSpaceHistory({
                             id,
                             url,
                             cat: 'websocket',
-                            init: websocket.initiator,
+                            init: JSON.stringify(websocket.initiator),
                             requestId: websocket.requestId,
                             sourceUrl: websocket.url,
                             frames: JSON.stringify(wsFrames.slice(0, 16))
