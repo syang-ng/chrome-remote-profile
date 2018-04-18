@@ -17,8 +17,8 @@ const chmod = Promise.promisify(fs.chmod);
 
 let db;
 
-async function writeJson(id, seq, data) {
-    const path = util.format('%s/%d/%d.json', config.dst, id, seq);
+async function writeJson({firstSeen, round, seq, data}) {
+    const path = util.format('%s/%d/%d/%d.json', config.dst, firstSeen, round, seq);
     try {
         await writeFile(path, JSON.stringify(data));
         const stat = fs.statSync(path);
@@ -31,12 +31,12 @@ async function writeJson(id, seq, data) {
     return;
 }
 
-async function writeJS({data, id, scriptId, url}) {
+async function writeJS({data, firstSeen, round, scriptId, url}) {
     // TODO accessdb
     if (!url || url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?')) {
        return;
     }
-    const path = `${config.dst}/${id}/${scriptId}`;
+    const path = `${config.dst}/${firstSeen}/${round}/${scriptId}.js`;
     try {
         await writeFile(path, JSON.stringify(data));
         const stat = fs.statSync(path);
@@ -48,8 +48,12 @@ async function writeJS({data, id, scriptId, url}) {
     }
 }
 
-function mkSubDir({id}) {
-    const path = `${config.dst}/${id}`
+function mkSubDir({firstSeen, round}) {
+    let path = `${config.dst}/${firstSeen}`;
+    if (!fs.existsSync(path)) {
+        fs.mkdirSync(path);
+    }
+    path = `${config.dst}/${firstSeen}/${round}`;
     if (!fs.existsSync(path)) {
         fs.mkdirSync(path);
     }
@@ -82,8 +86,8 @@ const rcvDebuggerGetScriptSource = async function(data, others) {
     if (!data || data.length === 0) {
         return;
     }
-    const {id, scriptId, url} = others;
-    await writeJS({data, id, scriptId, url});
+    const {firstSeen, round, scriptId, url} = others;
+    await writeJS({data, firstSeen, round, scriptId, url});
 }
 
 const rcvNetworkGetResponseBody = function(data, others) {
@@ -94,8 +98,8 @@ const rcvNetworkGetResponseBody = function(data, others) {
     // await writeJS(data, id, url);
 }
 
-const rcvProfileStop = async function(id, seq, data) {
-    await writeJson(id, seq, data);
+const rcvProfileStop = async function({firstSeen, round, seq, data}) {
+    await writeJson({firstSeen, round, seq, data});
 }
 
 const callbackMap = new Map([
@@ -118,6 +122,8 @@ program
 async function newTab(item, timeout, waitTime) {
     const url = item.url;
     const id = item.id;
+    const firstSeen = item.firstSeen;
+    const round = item.round;
     let client;
     try {
         // new tab
@@ -133,7 +139,7 @@ async function newTab(item, timeout, waitTime) {
                 port: config.port,
                 target: target
             });
-            mkSubDir({id});
+            mkSubDir({firstSeen, round});
             let seq = 1;
             let total = 1;
             let websocket = undefined;
@@ -156,7 +162,7 @@ async function newTab(item, timeout, waitTime) {
             Debugger.scriptParsed(async ({scriptId, url}) => {
                 try {
                     const {scriptSource} = await Debugger.getScriptSource({scriptId: scriptId});
-                    await rcvDebuggerGetScriptSource(scriptSource, {id, scriptId, url});
+                    await rcvDebuggerGetScriptSource(scriptSource, {id, scriptId, url, firstSeen, round});
                 } catch(err) {
                     console.error(err);
                 }
@@ -213,7 +219,7 @@ async function newTab(item, timeout, waitTime) {
                 let callback, others;
                 if (message.method === 'Debugger.scriptParsed') {
                     callbackArray[seq] = rcvDebuggerGetScriptSource;
-                    paramsArray[seq] = {id: id, scriptId: message.params.scriptId, url: message.params.url};
+                    paramsArray[seq] = {id: id, scriptId: message.params.scriptId, url: message.params.url, firstSeen, round};
                     Target.sendMessageToTarget({
                         message: JSON.stringify({id: seq++, method:"Debugger.getScriptSource", params:{scriptId: message.params.scriptId}}),
                         sessionId: obj.sessionId
@@ -231,7 +237,7 @@ async function newTab(item, timeout, waitTime) {
                 } else if(message.id !== undefined) {
                     callback = callbackArray[message.id];
                     if (callback === rcvProfileStop){
-                        await callback(id, total++, message.result.profile);                      
+                        await callback({firstSeen, round, seq: total++, data: message.result.profile});                      
                     } else if(callback === rcvDebuggerGetScriptSource){
                         others = paramsArray[message.id];                        
                         await callback(message.result.scriptSource, others);
@@ -252,7 +258,7 @@ async function newTab(item, timeout, waitTime) {
                     await Profiler.start();
                     await delay(timeout);
                     const {profile} = await Profiler.stop();
-                    await writeJson(id, 0, profile);
+                    await writeJson({firstSeen, round, seq: 0, data: profile});
                 })(),
                 (async()=>{
                     /* profile the other thread */
