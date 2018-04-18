@@ -359,11 +359,13 @@ async function main() {
         const {interval, timeout, waitTime, round} = program;
         /* run */
         console.log('************ begin! ************');
+        db = new DB(program.num, 300);
         const rows = await db.fetchTimeSpaceUrls({round});
+        await db.close();
         /*const rows = [{id: 1621940, url: 'https://browsermine.com/'}];*/
         for (let row of rows) {
             try {
-                db = new DB(program.num, 300);                    
+                db = new DB(program.num, 300);
                 const chrome = await launcher.launch(config);
                 await newTab(row, timeout, waitTime);                        
                 await chrome.kill();
