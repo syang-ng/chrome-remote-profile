@@ -35,7 +35,12 @@ delay = function (timeout) {
     })
 };
 
+formatStr = function(s) {
+    return s.replace("'", "\'");
+}
+
 exports.delay = delay;
+exports.formatStr = formatStr;
 exports.formatDate = formatDate;
 exports.formatTime = formatTime;
 exports.formatDateTime = formatDateTime;

@@ -10,7 +10,7 @@ global.Promise = require("bluebird");
 const DB = require('./db');
 const { env } = require('./env');
 const { config,redisConfig } = require('./config');
-const { delay, formatDateTime } = require('./utils');
+const { delay, formatDateTime, formatStr } = require('./utils');
 
 const writeFile = Promise.promisify(fs.writeFile);
 const chmod = Promise.promisify(fs.chmod);
@@ -31,7 +31,7 @@ async function writeJson(id, seq, data) {
     return;
 }
 
-async function writeJS(data, id, scriptId) {
+async function writeJS({data, id, scriptId, url}) {
     // TODO accessdb
     if (!url || url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?')) {
        return;
@@ -60,7 +60,7 @@ const rcvNetworkRequestWillBeSent = async function({id, url, initiator, sourceUr
         id: id,
         url: url,
         cat: 'request',
-        init: JSON.stringify(initiator),
+        init: formatStr(JSON.stringify(initiator)),
         sourceUrl: sourceUrl,
         requestId
     });
@@ -73,7 +73,7 @@ const rcvNetworkResponseReceived = async function({id, url, response, requestId}
         requestId,
         sourceUrl: response.url,
         cat: 'response',
-        init: JSON.stringify(response),
+        init: formatStr(JSON.stringify(response)),
     });
 }
 
@@ -82,8 +82,8 @@ const rcvDebuggerGetScriptSource = async function(data, others) {
     if (!data || data.length === 0) {
         return;
     }
-    const {id, scriptId} = others;
-    await writeJS(data, id, scriptId);
+    const {id, scriptId, url} = others;
+    await writeJS({data, id, scriptId, url});
 }
 
 const rcvNetworkGetResponseBody = function(data, others) {
@@ -153,10 +153,10 @@ async function newTab(item, timeout, waitTime) {
 
             await Target.setAutoAttach({autoAttach: true, waitForDebuggerOnStart: false}); 
             
-            Debugger.scriptParsed(async ({scriptId}) => {
+            Debugger.scriptParsed(async ({scriptId, url}) => {
                 try {
                     const {scriptSource} = await Debugger.getScriptSource({scriptId: scriptId});
-                    await rcvDebuggerGetScriptSource(scriptSource, {id, scriptId});
+                    await rcvDebuggerGetScriptSource(scriptSource, {id, scriptId, url});
                 } catch(err) {
                     console.error(err);
                 }
@@ -213,7 +213,7 @@ async function newTab(item, timeout, waitTime) {
                 let callback, others;
                 if (message.method === 'Debugger.scriptParsed') {
                     callbackArray[seq] = rcvDebuggerGetScriptSource;
-                    paramsArray[seq] = {id: id, scriptId: message.params.scriptId};
+                    paramsArray[seq] = {id: id, scriptId: message.params.scriptId, url: message.params.url};
                     Target.sendMessageToTarget({
                         message: JSON.stringify({id: seq++, method:"Debugger.getScriptSource", params:{scriptId: message.params.scriptId}}),
                         sessionId: obj.sessionId
