@@ -2,7 +2,7 @@ const mysql = require('mysql2/promise');
 const redis = require('redis')
 
 const { dbConfig, redisConfig } = require('./config');
-const { formatDateTime, formatStr } = require('./utils');
+const { formatDateTime } = require('./utils');
 
 
 class DB {
@@ -188,9 +188,9 @@ class DB {
     async finishReRunHistory({id, url, cat, init, sourceUrl}) {
         let sql;
         if (init !== undefined) {
-            sql = `INSERT INTO \`rerunHistory\` (profilerUrlId, url, cat, init, sourceUrl) VALUES (${id}, '${url}', '${cat}', '${init}', '${sourceUrl}')`;
+            sql = `INSERT INTO \`rerunHistory\` (profilerUrlId, url, cat, init, sourceUrl) VALUES (${id}, '${url}', '${cat}', ${this.pool.escape(init)}, ${this.pool.escape(sourceUrl)})`;
         } else {
-            sql = `INSERT INTO \`rerunHistory\` (profilerUrlId, url, cat, sourceUrl) VALUES (${id}, '${url}', '${cat}', '${sourceUrl}')`;            
+            sql = `INSERT INTO \`rerunHistory\` (profilerUrlId, url, cat, sourceUrl) VALUES (${id}, '${url}', '${cat}', '${this.pool.escape(sourceUrl)}')`;            
         }
         try {
             await this.pool.execute(sql);
@@ -201,7 +201,7 @@ class DB {
     }
 
     async fetchTimeSpaceUrls({round}) {
-        const sql = `select * from timeSpaceVisit where round = ${round}`;
+        const sql = `select * from timeSpaceVisit where round = ${round} where threads is null`;
         try {          
             const [row] = await this.pool.query(sql);    
             return row;
@@ -246,7 +246,7 @@ class DB {
         for(let key in obj){
             if(obj[key] !== undefined) {
                 keys.push(key);
-                values.push(`'${formatStr(obj[key].toString())}'`);                                    
+                values.push(`'${this.pool.escape(obj[key].toString())}'`);                                    
             }
         }
         const sql = `INSERT INTO \`timeSpaceHistory\` (${keys.join(', ')}) VALUES (${values.join(', ')})`;
