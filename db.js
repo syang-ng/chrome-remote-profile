@@ -201,7 +201,7 @@ class DB {
     }
 
     async fetchTimeSpaceUrls({round}) {
-        const sql = `select * from timeSpaceVisit where round = ${round} where threads is null`;
+        const sql = `select * from timeSpaceVisit where round = ${round} and threads is null`;
         try {          
             const [row] = await this.pool.query(sql);    
             return row;
@@ -246,7 +246,7 @@ class DB {
         for(let key in obj){
             if(obj[key] !== undefined) {
                 keys.push(key);
-                values.push(`'${this.pool.escape(obj[key].toString())}'`);                                    
+                values.push(`${this.pool.escape(obj[key].toString())}`);    
             }
         }
         const sql = `INSERT INTO \`timeSpaceHistory\` (${keys.join(', ')}) VALUES (${values.join(', ')})`;
