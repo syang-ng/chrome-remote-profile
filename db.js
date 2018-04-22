@@ -28,26 +28,6 @@ class DB {
         await this.pool.end();
     }
 
-    /**
-     * 返回数据库中最新的 id
-     * @return {number} - 最新插入的 id.
-     */
-    async recentId() {
-        const condition = !this.cover ? ' WHERE status is NULL ' : ' ';
-        const sql = `SELECT id FROM \`profilerUrl\`${condition}ORDER BY id DESC LIMIT 1`;
-        try {
-            const [row, field] = await this.pool.query(sql);
-            if (row.length === 0) {
-                return undefined;
-            } else {
-                return row[0].id;
-            }
-        } catch (err) {
-            console.error(err);
-            throw err;
-        }
-    }
-
     async fetchNewUrlsMaster(totalUrls) {
         let times = totalUrls / 10;
         console.log('redis db need to find  ' + totalUrls + ' urls');
@@ -174,6 +154,34 @@ class DB {
         return;
     }
 
+    async fecthFromRedis({key, num}) {
+        const ret = [];
+        const redisFetches = [];
+        for (let i = 0; i < num; i++) {
+            redisFetches.push(new Promise(resolve => {
+                this.redisClient.blpop(key, 1, function (error, data) {
+                    if (error) {
+                        console.log('redis fetchNewUrls error : ', error);
+                    }
+                    resolve(data);
+                });
+            }));
+        }
+        await Promise.all(redisFetches).then(function (rows) {
+            for (let k in rows) {
+                if (rows[k] == null) {
+                    break;
+                }
+                const strings = rows[k][1].split(',');
+                res.push({
+                    'id': strings[0],
+                    'url': strings[1]
+                });
+            }
+        });
+        return ret;
+    }
+
     async startProfile(id) {
         const timestamp = formatDateTime(new Date());
         const sql = `UPDATE \`profilerUrl\` SET status=3, finishTimeStamp="${timestamp}" WHERE id = ${id}`;
@@ -212,7 +220,8 @@ class DB {
     }
 
     async updateTimeSpaceUrls({id, threads}) {
-        const sql = `UPDATE \`timeSpaceVisit\` SET threads='${threads}' WHERE id = ${id}`;
+        const timestamp = formatDateTime(new Date());        
+        const sql = `UPDATE \`timeSpaceVisit\` SET threads='${threads}', timestamp='${timestamp}' WHERE id = ${id}`;
         try {
             await this.pool.execute(sql);
         } catch (err) {
@@ -246,7 +255,11 @@ class DB {
         for(let key in obj){
             if(obj[key] !== undefined) {
                 keys.push(key);
-                values.push(`${this.pool.escape(obj[key].toString())}`);    
+                if(key === 'frames') {
+                    values.push(`'${obj[key].toString()}'`);                        
+                } else {
+                    values.push(`${this.pool.escape(obj[key].toString())}`);    
+                }
             }
         }
         const sql = `INSERT INTO \`timeSpaceHistory\` (${keys.join(', ')}) VALUES (${values.join(', ')})`;

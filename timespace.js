@@ -3,7 +3,6 @@ const util = require('util');
 const program = require('commander');
 const launcher = require('chrome-launcher');
 const CDP = require('chrome-remote-interface');
-const exec = require('child_process').exec;
 // replace the Promise for high performance
 global.Promise = require("bluebird");
 
@@ -60,6 +59,9 @@ function mkSubDir({firstSeen, round}) {
 }
 
 const rcvNetworkRequestWillBeSent = async function({id, url, initiator, sourceUrl, requestId}) {
+    if(!id||!url||!response||!requestId) {
+        return;
+    }
     await db.finishTimeSpaceHistory({
         id: id,
         url: url,
@@ -71,18 +73,17 @@ const rcvNetworkRequestWillBeSent = async function({id, url, initiator, sourceUr
 }
 
 const rcvNetworkResponseReceived = async function({id, url, response, requestId}) {
-    try {
-        await db.finishTimeSpaceHistory({
-            id,
-            url,
-            requestId,
-            sourceUrl: response.url,
-            cat: 'response',
-            init: JSON.stringify(response),
-        });
-    } catch(err) {
-        ;
+    if(!id||!url||!response||!requestId) {
+        return;
     }
+    await db.finishTimeSpaceHistory({
+        id,
+        url,
+        requestId,
+        sourceUrl: response.url,
+        cat: 'response',
+        init: JSON.stringify(response),
+    });
 }
 
 const rcvDebuggerGetScriptSource = async function(data, others) {
@@ -98,8 +99,7 @@ const rcvNetworkGetResponseBody = function(data, others) {
     if (!data || data.length === 0) {
         return;
     }
-    // const {id, url} = others;
-    // await writeJS(data, id, url);
+    // const {id, url} = others; // await writeJS(data, id, url);
 }
 
 const rcvProfileStop = async function({firstSeen, round, seq, data}) {
@@ -330,6 +330,7 @@ function init() {
     config.dst = program.dst;
     config.port = program.port;
     program.interval = parseInt(program.interval);
+    program.num = parseInt(program.num);
     if (program.env != 'production') {
         console.log('test env');
         config.dst = './timespace';
@@ -356,37 +357,25 @@ async function main() {
     try {
         /* init */        
         await init();
-        const {interval, timeout, waitTime, round} = program;
+        const {interval, timeout, waitTime, round, num} = program;
         /* run */
         console.log('************ begin! ************');
-        db = new DB(program.num, 300);
-        const rows = await db.fetchTimeSpaceUrls({round});
-        await db.close();
+        db = new DB(num, 300);
+        const rows = await db.fecthFromRedis({key: 'timespace', num})
         /*const rows = [{id: 1621940, url: 'https://browsermine.com/'}];*/
         for (let row of rows) {
             try {
-                db = new DB(program.num, 300);
                 const chrome = await launcher.launch(config);
                 await newTab(row, timeout, waitTime);                        
                 await chrome.kill();
             } catch (err) {
                 console.error(err)
-            } finally {
-                await db.close();                
-                const cmd = `pkill -f port=${config.port}`;
-                console.log(cmd);
-                exec(cmd, (error, stdout, stderr) => {
-                    console.log(`${stdout}`);
-                    console.log(`${stderr}`);
-                    if (error !== null) {
-                        console.log(`exec error: ${error}`);
-                    }
-                });
             }
         }
     } catch (err) {
         console.error(err);
     } finally {
+        await db.close();        
         process.exit();                
     }
 }
