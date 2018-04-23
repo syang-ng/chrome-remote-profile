@@ -3,7 +3,6 @@ const util = require('util');
 const program = require('commander');
 const launcher = require('chrome-launcher');
 const CDP = require('chrome-remote-interface');
-const exec = require('child_process').exec;
 
 // replace the Promise for high performance
 global.Promise = require("bluebird");
@@ -323,16 +322,6 @@ async function main() {
                 await chrome.kill();
             } catch (err) {
                 console.error(err)
-            } finally {
-                const cmd = `pkill -f port=${config.port}`;
-                console.log(cmd);
-                exec(cmd, (error, stdout, stderr) => {
-                    console.log(`${stdout}`);
-                    console.log(`${stderr}`);
-                    if (error !== null) {
-                        console.log(`exec error: ${error}`);
-                    }
-                });
             }
         }
         /* delay for kill Chrome */
