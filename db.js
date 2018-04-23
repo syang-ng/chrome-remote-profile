@@ -168,15 +168,10 @@ class DB {
             }));
         }
         await Promise.all(redisFetches).then(function (rows) {
-            for (let k in rows) {
-                if (rows[k] == null) {
-                    break;
+            for (let row of rows) {
+                if(row !== undefined && row !== null) {
+                    ret.push(JSON.parse(row[1]));
                 }
-                const strings = rows[k][1].split(',');
-                res.push({
-                    'id': strings[0],
-                    'url': strings[1]
-                });
             }
         });
         return ret;
@@ -221,7 +216,7 @@ class DB {
 
     async updateTimeSpaceUrls({id, threads}) {
         const timestamp = formatDateTime(new Date());        
-        const sql = `UPDATE \`timeSpaceVisit\` SET threads='${threads}', timestamp='${timestamp}' WHERE id = ${id}`;
+        const sql = `UPDATE \`timeSpaceVisit\` SET threads='${threads}', timeStamp='${timestamp}' WHERE id = ${id}`;
         try {
             await this.pool.execute(sql);
         } catch (err) {
@@ -301,7 +296,21 @@ async function testDB() {
         console.log(JSON.stringify(item));
     } 
 }
+
+async function testFetchFromRedis() {
+    let db;
+    try{
+        db = new DB();
+        const rows = await db.fecthFromRedis({key: 'timespace', num: 109});
+        for(let row of rows) {
+            console.log(JSON.stringify(row))
+        }
+    } catch(err) {
+        console.error(err);
+    }
+} 
 //testRedis();
 //testDB();
+//testFetchFromRedis();
 
 module.exports = DB;
