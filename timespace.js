@@ -59,7 +59,7 @@ function mkSubDir({firstSeen, round}) {
 }
 
 const rcvNetworkRequestWillBeSent = async function({id, url, initiator, sourceUrl, requestId}) {
-    if(!id||!url||!response||!requestId) {
+    if(!id||!url) {
         return;
     }
     await db.finishTimeSpaceHistory({
@@ -73,7 +73,7 @@ const rcvNetworkRequestWillBeSent = async function({id, url, initiator, sourceUr
 }
 
 const rcvNetworkResponseReceived = async function({id, url, response, requestId}) {
-    if(!id||!url||!response||!requestId) {
+    if(!id||!url) {
         return;
     }
     await db.finishTimeSpaceHistory({
@@ -118,7 +118,6 @@ program
     .option('-T --timeout <time>', 'the time to profile', 8)
     .option('-W --waitTime <time>', 'the delay time to wait for website loading', 20)
     .option('-I --interval <time>', 'the interval of each tab', 5)
-    .option('-R --round <number>', 'current round', 0)
     .option('-N --num <number>', 'the number of tab to profile before chrome restart', 100)   
     .option('-E --env <env>', 'the environment', 'production');
 
@@ -354,15 +353,18 @@ function init() {
 }
 
 async function main() {
+    process.on("uncatchException", function(err) {
+        console.error(err);
+    });
     try {
         /* init */        
         await init();
-        const {interval, timeout, waitTime, round, num} = program;
+        const {interval, timeout, waitTime, num} = program;
         /* run */
         console.log('************ begin! ************');
         db = new DB(num, 300);
         const rows = await db.fecthFromRedis({key: 'timespace', num})
-        /*const rows = [{id: 1621940, url: 'https://browsermine.com/'}];*/
+        //const rows = [{id: 1621940, url: 'https://browsermine.com/', firstSeen: 0, round:0}];
         for (let row of rows) {
             try {
                 const chrome = await launcher.launch(config);
@@ -379,9 +381,5 @@ async function main() {
         process.exit();                
     }
 }
-
-process.on("uncatchException", function(err) {
-    console.error(err);
-});
 
 main();
