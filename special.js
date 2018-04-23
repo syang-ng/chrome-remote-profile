@@ -50,6 +50,9 @@ async function writeJS(data, id, scriptId) {
 }
 
 const rcvNetworkRequestWillBeSent = async function({id, url, initiator, sourceUrl}) {
+    if(!id||!url){
+        return;
+    }
     await db.finishReRunHistory({
         id: id,
         url: url,
