@@ -367,6 +367,7 @@ async function main() {
         //const rows = [{id: 1621940, url: 'https://browsermine.com/', firstSeen: 0, round:0}];
         for (let row of rows) {
             try {
+                console.log(row);
                 const chrome = await launcher.launch(config);
                 await newTab(row, timeout, waitTime);                        
                 await chrome.kill();
