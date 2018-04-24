@@ -42,8 +42,6 @@ const rcvProfileStop = async function ({id, seq, data}) {
     await writeJson({id, seq, data});
 }
 
-const websocketIntoDB = async function({db, })
-
 const callbackMap = new Map([
     ['Network.requestWillBeSent', rcvNetworkRequestWillBeSent],
     ['Network.responseReceived', rcvNetworkResponseReceived]    
