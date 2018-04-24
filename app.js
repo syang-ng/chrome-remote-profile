@@ -42,6 +42,8 @@ const rcvProfileStop = async function ({id, seq, data}) {
     await writeJson({id, seq, data});
 }
 
+const websocketIntoDB = async function({db, })
+
 const callbackMap = new Map([
     ['Network.requestWillBeSent', rcvNetworkRequestWillBeSent],
     ['Network.responseReceived', rcvNetworkResponseReceived]    
@@ -167,6 +169,17 @@ async function newTab(item, timeout, waitTime) {
                 }
             });
             await delay(waitTime);
+            if(websocket !== undefined) {
+                await db.finishNewRequestHistory({
+                    id,
+                    url,
+                    cat: 'websocket',
+                    init: JSON.stringify(websocket.initiator),
+                    requestId: websocket.requestId,
+                    sourceUrl: websocket.url,
+                    frames: JSON.stringify(wsFrames.slice(0, 16))
+                });
+            }
             if (sessions.size >= 15) {
                 await db.finishProfile(id, sessions.size + 1);
                 await CDP.Close({
@@ -208,20 +221,6 @@ async function newTab(item, timeout, waitTime) {
             num += sessions.size;
             await Promise.all([
                 db.finishProfile(id, num + 1),
-                new Promise(async (resolve, reject)=>{
-                    if(websocket !== undefined) {
-                        await db.finishNewRequestHistory({
-                            id,
-                            url,
-                            cat: 'websocket',
-                            init: JSON.stringify(websocket.initiator),
-                            requestId: websocket.requestId,
-                            sourceUrl: websocket.url,
-                            frames: JSON.stringify(wsFrames.slice(0, 16))
-                        });
-                    }
-                    resolve();
-                }),
                 new Promise(async (resolve, reject)=>{
                     let count = 0;
                     while (total <= num && count < 10) {
