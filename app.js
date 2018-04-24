@@ -30,10 +30,6 @@ async function writeJson({id, seq, data}) {
     }
 }
 
-const rcvDebuggerGetScriptSource = async function(data, others) {
-    return;
-}
-
 const rcvNetworkRequestWillBeSent = async function({id, url, initiator, sourceUrl, requestId}) {
     return;
 }
@@ -42,7 +38,7 @@ const rcvNetworkResponseReceived = async function({id, url, response, requestId}
     return;
 }
 
-const rcvProfileStop = function ({id, seq, data}) {
+const rcvProfileStop = async function ({id, seq, data}) {
     await writeJson({id, seq, data});
 }
 
@@ -157,68 +153,15 @@ async function newTab(item, timeout, waitTime) {
 
             Target.receivedMessageFromTarget((obj) => {
                 const message = JSON.parse(obj.message);
-                const deltaTime = new Date() - initTime;
                 let callback, others;
                 if (message.method === 'Debugger.scriptParsed') {
-                    callbackArray[seq] = rcvDebuggerGetScriptSource;
-                    requestArray[seq] = {
-                        requestUrls: requestUrls,
-                        url: url,
-                        deltaTime: deltaTime,
-                        requestUrl: message.params.url
-                    };
-                    Target.sendMessageToTarget({
-                        message: JSON.stringify({
-                            id: seq++,
-                            method: "Debugger.getScriptSource",
-                            params: {
-                                scriptId: message.params.scriptId
-                            }
-                        }),
-                        sessionId: obj.sessionId
-                    });
-                } else if (message.method === 'Network.responseReceived') {
-                    callbackArray[seq] = rcvNetworkGetResponseBody;
-                    requestArray[seq] = {
-                        requestUrls: requestUrls,
-                        url: url,
-                        deltaTime: deltaTime,
-                        requestUrl: message.params.response.url
-                    };
-                    Target.sendMessageToTarget({
-                        message: JSON.stringify({
-                            id: seq++,
-                            method: 'Network.getResponseBody',
-                            params: {
-                                requestId: message.params.requestId
-                            }
-                        }),
-                        sessionId: obj.sessionId
-                    });
+                    
                 } else if (message.method !== undefined) {
                     callback = callbackMap.get(message.method);
-                    if (callback !== undefined) {
-                        others = {
-                            requestUrls: requestUrls,
-                            url: url,
-                            deltaTime: deltaTime
-                        };
-                        callback(message.params, others);
-                    }
                 } else if (message.id !== undefined) {
                     callback = callbackArray[message.id];
                     if (callback === rcvProfileStop) {
-                        callback({id, seq: total++, data: message.result.profile});
-                    } else if (callback === rcvDebuggerGetScriptSource) {
-                        others = requestArray[message.id];
-                        callback(message.result.scriptSource, others);
-                        delete requestArray[message.id];
-                    } else if (callback === rcvNetworkGetResponseBody) {
-                        others = requestArray[message.id];
-                        if (message.result !== undefined) {
-                            callback(message.result.body, others);
-                        }
-                        delete requestArray[message.id];
+                        await callback({id, seq: total++, data: message.result.profile});
                     }
                     delete callbackArray[message.id];
                 }
@@ -313,8 +256,8 @@ function init() {
 
     if (program.env != 'production') {
         console.log('test env');
-        config.dst = '/home/lancer/share';
-        //redisConfig.host = '127.0.0.1';
+        config.dst = './share';
+        delete config['chromePath'];
         program.num = 1;
     }
 
