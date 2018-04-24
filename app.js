@@ -151,7 +151,7 @@ async function newTab(item, timeout, waitTime) {
                 }
             });
 
-            Target.receivedMessageFromTarget((obj) => {
+            Target.receivedMessageFromTarget(async (obj) => {
                 const message = JSON.parse(obj.message);
                 let callback, others;
                 if (message.method === 'Debugger.scriptParsed') {
