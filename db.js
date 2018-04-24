@@ -123,35 +123,16 @@ class DB {
      * 完成 profile 后将数据写回数据库
      * @param {number} id - 对应 id.
      * @param {number} threads - 相应线程数.
-     * @return {boolean} - 写入状态. 
      */
-    async finishProfile(id, threads, requestUrls) {
+    async finishProfile(id, threads) {
         const timestamp = formatDateTime(new Date());
         const sql = `UPDATE \`profilerUrl\` SET status=4, threads=${threads}, finishTimeStamp="${timestamp}" WHERE id = ${id}`;
         try {
             console.log(sql);
             await this.pool.execute(sql);
-            //return true;
         } catch (err) {
             console.error(err);
-            //throw err;
         }
-        for (let idx in requestUrls) {
-            const request = requestUrls[idx];
-            const url = request.url;
-            const time = request.time;
-            const requestUrl = request.requestUrl;
-            const fileHash = request.fileHash;
-            const category = request.category;
-            const requestsUrlSql = `INSERT INTO  requestHistory(url, time, requestUrl,category, fileHash)VALUES("${url}", "${time}", "${requestUrl}", "${category}","${fileHash}")`;
-            try {
-                //       console.log('requestUrls : ' +requestsUrlSql);
-                await this.pool.execute(requestsUrlSql);
-            } catch (err) {
-                console.error(err);
-            }
-        }
-        return;
     }
 
     async fecthFromRedis({key, num}) {
@@ -234,6 +215,14 @@ class DB {
     }
 
     async finishTimeSpaceHistory({id, url, cat, init, sourceUrl, frames, requestId}) {
+        await this.finishNetworkHistory({id, url, cat, init, sourceUrl, frames, requestId, table: 'timeSpaceHistory'});
+    }
+
+    async finishNewRequestHistory({id, url, cat, init, sourceUrl, frames, requestId}) {
+        await this.finishNetworkHistory({id, url, cat, init, sourceUrl, frames, requestId, table: 'newRequestHistory'});
+    }
+
+    async finishNetworkHistory({id, url, cat, init, sourceUrl, frames, requestId, table}) {
         const time = formatDateTime(new Date());
         const obj = {
             profilerUrlId: id,
@@ -257,7 +246,7 @@ class DB {
                 }
             }
         }
-        const sql = `INSERT INTO \`timeSpaceHistory\` (${keys.join(', ')}) VALUES (${values.join(', ')})`;
+        const sql = `INSERT INTO \`${table}\` (${keys.join(', ')}) VALUES (${values.join(', ')})`;
         try {
             await this.pool.execute(sql);
         } catch (err) {
