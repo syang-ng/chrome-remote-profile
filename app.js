@@ -187,7 +187,7 @@ async function newTab(item, timeout, waitTime) {
                 })(),
                 (async()=>{
                     /* profile the other thread */
-                    await Promise.map(pSessions, async (sessionId)=>{
+                    await Promise.map(sessions, async (sessionId)=>{
                         await Target.sendMessageToTarget({
                             message: JSON.stringify({id: seq++, method:"Profiler.setSamplingInterval", params:{interval:100}}),
                             sessionId: sessionId
