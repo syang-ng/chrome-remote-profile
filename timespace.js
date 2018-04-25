@@ -250,6 +250,17 @@ async function newTab(item, timeout, waitTime) {
                 }
             });
             await delay(waitTime);
+            if(websocket !== undefined) {
+                await db.finishTimeSpaceHistory({
+                    id,
+                    url,
+                    cat: 'websocket',
+                    init: JSON.stringify(websocket.initiator),
+                    requestId: websocket.requestId,
+                    sourceUrl: websocket.url,
+                    frames: JSON.stringify(wsFrames.slice(0, 16))
+                });
+            }
             let pSessions = Array.from(sessions);
             if (pSessions.length > 8) {
                 pSessions = pSessions.slice(0, 8);
@@ -285,20 +296,6 @@ async function newTab(item, timeout, waitTime) {
             ]);
             await Promise.all([
                 db.updateTimeSpaceUrls({id: id, threads: sessions.size+1}),
-                new Promise(async (resolve, reject)=>{
-                    if(websocket !== undefined) {
-                        await db.finishTimeSpaceHistory({
-                            id,
-                            url,
-                            cat: 'websocket',
-                            init: JSON.stringify(websocket.initiator),
-                            requestId: websocket.requestId,
-                            sourceUrl: websocket.url,
-                            frames: JSON.stringify(wsFrames.slice(0, 16))
-                        });
-                    }
-                    resolve();
-                }),
                 new Promise(async (resolve, reject)=>{
                     let count = 0;
                     while (total <= sessions.size && count < 10) {
