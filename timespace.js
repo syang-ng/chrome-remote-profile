@@ -253,7 +253,7 @@ async function newTab(item, timeout, waitTime) {
             });
             await delay(waitTime);
             if(websockets.size !== 0) {
-                await Promise.map(Array.from(websockets), async(requestId, websocket)=>{
+                await Promise.map(Array.from(websockets), async([requestId, websocket])=>{
                     await db.finishTimeSpaceHistory({
                         id,
                         url,
