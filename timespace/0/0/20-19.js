@@ -1,1 +1,0 @@
-"func (param i32 i32 i32)\n  i32.const 0\n  call 0\nend\n"

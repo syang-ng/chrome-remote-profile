@@ -1,1 +1,0 @@
-"myMiner.init('0');"

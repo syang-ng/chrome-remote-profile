@@ -1,1 +1,0 @@
-"var licounter = new Image();\nlicounter.src = \"//counter.yadro.ru/hit?t24.1;r\"+escape(document.referrer)+((typeof(screen)==\"undefined\")?\"\":\";s\"+screen.width+\"*\"+screen.height+\"*\"+(screen.colorDepth?screen.colorDepth:screen.pixelDepth))+\";u\"+escape(document.URL)+\";\"+Math.random();"
