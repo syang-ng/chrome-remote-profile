@@ -145,12 +145,11 @@ async function newTab(item, timeout, waitTime) {
             mkSubDir({firstSeen, round});
             let seq = 1;
             let total = 1;
-            let websocket = undefined;
+            let websockets = new Map();
             const callbackArray = new Array();
             const paramsArray = new Array();      
             const sessions = new Set();
             const requestsMap = new Map();
-            const wsFrames = new Array();
 
             const {Debugger, Network, Target, Profiler} = client;
             
@@ -181,15 +180,18 @@ async function newTab(item, timeout, waitTime) {
             });
 
             Network.webSocketCreated(({url, initiator, requestId})=>{
-                websocket = {url, initiator, requestId};
+                websocket = {url, initiator, requestId, wsFrames: []};
+                websockets.set(requestId, websocket);
             });
 
-            Network.webSocketFrameSent(({response})=>{
-                wsFrames.push(response.payloadData);
+            Network.webSocketFrameSent(({response, requestId})=>{
+                websocket = websockets.get(requestId);
+                websocket.wsFrames.push(response.payloadData);
             });
 
-            Network.webSocketFrameReceived(({response})=>{
-                wsFrames.push(response.payloadData);                
+            Network.webSocketFrameReceived(({response, requestId})=>{
+                websocket = websockets.get(requestId);
+                websocket.wsFrames.push(response.payloadData);             
             });
             
             Target.attachedToTarget((obj) => {
@@ -250,15 +252,17 @@ async function newTab(item, timeout, waitTime) {
                 }
             });
             await delay(waitTime);
-            if(websocket !== undefined) {
-                await db.finishTimeSpaceHistory({
-                    id,
-                    url,
-                    cat: 'websocket',
-                    init: JSON.stringify(websocket.initiator),
-                    requestId: websocket.requestId,
-                    sourceUrl: websocket.url,
-                    frames: JSON.stringify(wsFrames.slice(0, 16))
+            if(websockets.size !== 0) {
+                await Promise.map(Array.from(websockets), async(requestId, websocket)=>{
+                    await db.finishTimeSpaceHistory({
+                        id,
+                        url,
+                        cat: 'websocket',
+                        init: JSON.stringify(websocket.initiator),
+                        requestId: websocket.requestId,
+                        sourceUrl: websocket.url,
+                        frames: JSON.stringify(websocket.wsFrames.slice(0, 16))
+                    });
                 });
             }
             let pSessions = Array.from(sessions);

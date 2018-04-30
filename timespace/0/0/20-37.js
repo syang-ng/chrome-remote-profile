@@ -1,0 +1,1 @@
+"func (param i32) (result i32)\n(local i32)\n  get_global 4\n  set_local 1\n  get_global 4\n  get_local 0\n  i32.add\n  set_global 4\n  get_global 4\n  i32.const 15\n  i32.add\n  i32.const -16\n  i32.and\n  set_global 4\n  get_local 1\nend\n"
