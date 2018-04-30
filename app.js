@@ -59,7 +59,7 @@ program
 
 /* profiler the special url with new tab */
 async function newTab(item, timeout, waitTime) {
-    const url = item.url;
+    const url = encodeURI(item.url);
     const id = item.id;
     await db.startProfile(id);
     try {
