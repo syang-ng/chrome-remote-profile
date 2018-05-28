@@ -7,7 +7,7 @@ exports.config = {
 
 /* 数据库配置 */
 exports.dbConfig = {
-    host: '10.141.209.139',
+    host: '10.141.209.137',
     port: 3306,
     user: 'lancer',
     password: 'lancer',

@@ -18,7 +18,7 @@ const chmod = Promise.promisify(fs.chmod);
 let db;
 
 async function writeJson({id, seq, data}) {
-    const path = util.format('%s/%d_%d.json', config.dst, id, seq);
+    const path = util.format('%s/json/%d_%d.json', config.dst, id, seq);
     try {
         await writeFile(path, JSON.stringify(data));
         const stat = fs.statSync(path);
@@ -61,7 +61,7 @@ program
 async function newTab(item, timeout, waitTime) {
     const url = encodeURI(item.url);
     const id = item.id;
-    await db.startProfile(id);
+    await db.startProfile({id});
     try {
         // new tab
         const target = await CDP.New({
@@ -80,14 +80,14 @@ async function newTab(item, timeout, waitTime) {
             let num = 0;
             let seq = 1;
             let total = 1;
-            let websocket = undefined;
+            let websocket = 0;
             const callbackArray = new Array();
             const paramsArray = new Array();      
             const sessions = new Set();
             const requestsMap = new Map();
             const wsFrames = new Array();
 
-            const { Debugger, Network, Target, Profiler } = client;
+            const { Debugger, Network, Target, Page, Profiler } = client;
 
             await Promise.all([
                 Debugger.enable(),
@@ -95,8 +95,13 @@ async function newTab(item, timeout, waitTime) {
                     maxTotalBufferSize: 10000000,
                     maxResourceBufferSize: 5000000
                 }),
+                Page.enable(),
                 Profiler.enable()
             ]);
+
+            await Page.addScriptToEvaluateOnNewDocument({
+                source:"Object.defineProperty(navigator, 'hardwareConcurrency', {enumerable: true, get: function() { return 4;} } );"
+            });
 
             await Target.setAutoAttach({
                 autoAttach: true,
@@ -113,9 +118,10 @@ async function newTab(item, timeout, waitTime) {
             });
 
             Network.webSocketCreated(({url, initiator, requestId})=>{
-                websocket = {url, initiator, requestId};
+                websocket = 1;
             });
 
+            /*
             Network.webSocketFrameSent(({response})=>{
                 wsFrames.push(response.payloadData);
             });
@@ -123,6 +129,7 @@ async function newTab(item, timeout, waitTime) {
             Network.webSocketFrameReceived(({response})=>{
                 wsFrames.push(response.payloadData);                
             });
+            */
 
             Target.attachedToTarget((obj) => {
                 if (obj.sessionId !== undefined) {
@@ -154,8 +161,7 @@ async function newTab(item, timeout, waitTime) {
             Target.receivedMessageFromTarget(async (obj) => {
                 const message = JSON.parse(obj.message);
                 let callback, others;
-                if (message.method === 'Debugger.scriptParsed') {
-                    
+                if (message.method === 'Debugger.scriptParsed') {    
                 } else if (message.method !== undefined) {
                     callback = callbackMap.get(message.method);
                 } else if (message.id !== undefined) {
@@ -166,20 +172,12 @@ async function newTab(item, timeout, waitTime) {
                     delete callbackArray[message.id];
                 }
             });
+            
             await delay(waitTime);
-            if(websocket !== undefined) {
-                await db.finishNewRequestHistory({
-                    id,
-                    url,
-                    cat: 'websocket',
-                    init: JSON.stringify(websocket.initiator),
-                    requestId: websocket.requestId,
-                    sourceUrl: websocket.url,
-                    frames: JSON.stringify(wsFrames.slice(0, 16))
-                });
-            }
+
+            /* if seesions are too many, return */
             if (sessions.size >= 15) {
-                await db.finishProfile(id, sessions.size + 1);
+                await db.finishProfile({id, threads: sessions.size + 1, websocket});
                 await CDP.Close({
                     host: config.host,
                     port: config.port,
@@ -187,6 +185,7 @@ async function newTab(item, timeout, waitTime) {
                 });
                 return;
             }
+
             await Promise.all([
                 (async()=>{
                     /* profile the main thread */
@@ -216,18 +215,11 @@ async function newTab(item, timeout, waitTime) {
                     }, {concurrency: 8});
                  })()
             ]);
+
             num += sessions.size;
-            await Promise.all([
-                db.finishProfile(id, num + 1),
-                new Promise(async (resolve, reject)=>{
-                    let count = 0;
-                    while (total <= num && count < 10) {
-                        await delay(0.5);
-                        count++;
-                    }
-                    resolve();
-                })
-            ]);
+
+            await db.finishProfile({id, threads: num + 1, websocket});
+
             await CDP.Close({
                 host: config.host,
                 port: config.port,
@@ -285,16 +277,15 @@ async function main() {
         /* initial */
         await init();
         const { interval, num, timeout, waitTime } = program;
-        /* mysql 数据库对象创建 */
         /* init db */
-        db = new DB(program.num, 300);
+        db = new DB({dlimit: 150});
         /* start Chrome */
         const chrome = await launcher.launch(config);
         /* run */
         console.log('************ begin! ************');
         console.log("App run at %s", formatDateTime(new Date()));
         console.log(`want to fetch ${num} urls`);
-        const rows = await db.fetchNewUrlsMaster(num);
+        const rows = await db.fecthFromRedis({key: 'to_profile', num});
         // const rows = [{id: 1621940, url: 'https://browsermine.com/'}];
         console.log(`actually fetch ${rows.length} urls`);
         if (rows.length === 0) {

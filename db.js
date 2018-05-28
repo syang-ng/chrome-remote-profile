@@ -4,21 +4,20 @@ const redis = require('redis')
 const { dbConfig, redisConfig } = require('./config');
 const { formatDateTime } = require('./utils');
 
-
 class DB {
-    /**
-     * 数据库构造函数
-     * @param {number} limit - 线程池上限. 
-     * @param {boolean} cover - 是否覆盖已处理数据项.
-     * @param {object} config - 数据库配置.
-     */
-    constructor(redisLimit = 3, limit = 30, cover = false, config = dbConfig) {
+    /* 数据库构造函数 */
+    constructor({dlimit, rlimit, config}) {
+
+        const mysql_config = config || dbConfig;
+        const mysql_limit = dlimit || 100;
+        
         this.pool = mysql.createPool(
             Object.assign({
-                connectionLimit: limit
-            }, dbConfig)
+                connectionLimit: mysql_limit
+            }, mysql_config)
         );
-        this.cover = cover;
+        
+        this.redisLimit = rlimit || 1000;
         this.redisClient = redis.createClient(6379, redisConfig.host);
     }
 
@@ -26,6 +25,63 @@ class DB {
     async close() {
         this.redisClient.quit();
         await this.pool.end();
+    }
+
+    async startProfile({id}) {
+        const timestamp = formatDateTime(new Date());
+        const sql = `UPDATE \`profilerUrl\` SET status=3, finishTimeStamp="${timestamp}" WHERE id = ${id}`;
+        try {
+            await this.pool.execute(sql);
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    /* 完成 profile 后将数据写回数据库 */
+    async finishProfile({id, threads, websocket}) {
+        const timestamp = formatDateTime(new Date());
+        const sql = `UPDATE \`profilerUrl\` SET status=4, threads=${threads}, webSocket=${websocket} ,finishTimeStamp="${timestamp}" WHERE id = ${id}`;
+        try {
+            console.log(sql);
+            await this.pool.execute(sql);
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    /* fetch from redis */
+    async fecthFromRedis({key, num}) {
+        console.log(`need to find from ${key}: ${num} urls`);      
+
+        const ret = [];
+        const redisFetches = [];
+        
+        while(num > 0) {
+            const n = Math.min(num, this.redisLimit);
+            for (let i = 0; i < n; i++) {
+                redisFetches.push(new Promise(resolve => {
+                    this.redisClient.blpop(key, 1, function (error, data) {
+                        if (error) {
+                            console.log('redis fetchNewUrls error : ', error);
+                        }
+                        resolve(data);
+                    });
+                }));
+            }
+    
+            await Promise.all(redisFetches).then(function (rows) {
+                for (let row of rows) {
+                    if(row !== undefined && row !== null) {
+                        ret.push(JSON.parse(row[1]));
+                    }
+                }
+            });
+
+            num -= this.redisLimit;
+        }
+
+        console.log(`actually find from ${key}: ${num} urls`);
+        return ret;
     }
 
     async fetchNewUrlsMaster(totalUrls) {
@@ -44,131 +100,6 @@ class DB {
         return res;
     }
 
-    async fetchNewUrls(redisLimit) {
-        let res = new Array();
-        let redisFetches = [];
-        for (let i = 0; i < redisLimit; i++) {
-            redisFetches.push(new Promise(resolve => {
-                this.redisClient.blpop('to_profile', 1, function (error, data) {
-                    if (error) {
-                        console.log('redis fetchNewUrls error : ', error);
-                    }
-                    resolve(data);
-                });
-            }));
-        }
-        await Promise.all(redisFetches)
-            .then(function (rows) {
-                for (let k in rows) {
-                    if (rows[k] == null) {
-                        break;
-                    }
-                    let strings = rows[k][1].split(',');
-                    res.push({
-                        'id': strings[0],
-                        'url': strings[1]
-                    });
-                }
-            });
-        return res;
-    }
-
-    async fetchReRunUrlsMaster(totalUrls) {
-        let times = totalUrls / 10;
-        console.log('redis db need to find  ' + totalUrls + ' urls');
-        console.log('redis db need to find  ' + times + ' times');
-        let res = [];
-        while (times--) {
-            let curRes = await this.fetchReRunUrls(10);
-            for (let item of curRes)
-                res.push(item);
-            if (curRes.length < 10)
-                break;
-        }
-        console.log('redis db find ' + res.length + ' urls');
-        return res;
-    }
-
-    async fetchReRunUrls(redisLimit) {
-        const res = new Array();
-        const redisFetches = new Array();
-        for (let i = 0; i < redisLimit; i++) {
-            redisFetches.push(new Promise(resolve => {
-                this.redisClient.blpop('rerun', 1, function (error, data) {
-                    if (error) {
-                        console.log('redis fetchNewUrls error : ', error);
-                    }
-                    resolve(data);
-                });
-            }));
-        }
-        await Promise.all(redisFetches)
-            .then(function (rows) {
-                for (let k in rows) {
-                    if (rows[k] == null) {
-                        break;
-                    }
-                    let strings = rows[k][1].split(',');
-                    res.push({
-                        'id': strings[0],
-                        'url': strings[1]
-                    });
-                }
-            });
-        console.log(res.length)
-        return res;
-    }
-
-    /**
-     * 完成 profile 后将数据写回数据库
-     * @param {number} id - 对应 id.
-     * @param {number} threads - 相应线程数.
-     */
-    async finishProfile(id, threads) {
-        const timestamp = formatDateTime(new Date());
-        const sql = `UPDATE \`profilerUrl\` SET status=4, threads=${threads}, finishTimeStamp="${timestamp}" WHERE id = ${id}`;
-        try {
-            console.log(sql);
-            await this.pool.execute(sql);
-        } catch (err) {
-            console.error(err);
-        }
-    }
-
-    async fecthFromRedis({key, num}) {
-        const ret = [];
-        const redisFetches = [];
-        for (let i = 0; i < num; i++) {
-            redisFetches.push(new Promise(resolve => {
-                this.redisClient.blpop(key, 1, function (error, data) {
-                    if (error) {
-                        console.log('redis fetchNewUrls error : ', error);
-                    }
-                    resolve(data);
-                });
-            }));
-        }
-        await Promise.all(redisFetches).then(function (rows) {
-            for (let row of rows) {
-                if(row !== undefined && row !== null) {
-                    ret.push(JSON.parse(row[1]));
-                }
-            }
-        });
-        return ret;
-    }
-
-    async startProfile(id) {
-        const timestamp = formatDateTime(new Date());
-        const sql = `UPDATE \`profilerUrl\` SET status=3, finishTimeStamp="${timestamp}" WHERE id = ${id}`;
-        try {
-            await this.pool.execute(sql);
-        } catch (err) {
-            console.error(err);
-        }
-        return;
-    }
-
     async finishReRunHistory({id, url, cat, init, sourceUrl}) {
         let sql;
         if (init !== undefined) {
@@ -182,17 +113,6 @@ class DB {
             console.error(err);
         }
         return;
-    }
-
-    async fetchTimeSpaceUrls({round}) {
-        const sql = `select * from timeSpaceVisit where round = ${round} and threads is null`;
-        try {          
-            const [row] = await this.pool.query(sql);    
-            return row;
-        } catch (err) {
-            console.error(err);
-            return [];
-        }
     }
 
     async updateTimeSpaceUrls({id, threads}) {
@@ -254,52 +174,5 @@ class DB {
         }
     }
 }
-
-// test function
-async function testRedis() {
-    let db;
-    try {
-        db = new DB();
-    } catch (error) {
-        console.log(error);
-    }
-    for (let i = 0; i < 2; i++) {
-        res = await db.fetchNewUrlsMaster(1000);
-        for (let e in res) {
-            console.log(res[e]);
-        }
-        console.log(typeof res);
-        console.log(res.length);
-    }
-}
-
-async function testDB() {
-    let db;
-    try {
-        db = new DB();
-    } catch (error) {
-        console.log(error);
-    }
-    const ret = await db.fetchTimeSpaceUrls({round: 0});
-    for(let item of ret) {
-        console.log(JSON.stringify(item));
-    } 
-}
-
-async function testFetchFromRedis() {
-    let db;
-    try{
-        db = new DB();
-        const rows = await db.fecthFromRedis({key: 'timespace', num: 109});
-        for(let row of rows) {
-            console.log(JSON.stringify(row))
-        }
-    } catch(err) {
-        console.error(err);
-    }
-} 
-//testRedis();
-//testDB();
-//testFetchFromRedis();
 
 module.exports = DB;
