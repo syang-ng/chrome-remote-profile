@@ -64,7 +64,6 @@ typings/
 *.txt
 *profiles/
 
-test.js
 test*
 *.old.*
 *vscode/
