@@ -1,10 +1,10 @@
-const DB = require('./db');
+const DB = require('../db');
 
 // test function
 async function testRedis() {
     let db;
     try {
-        db = new DB();
+        db = new DB({});
     } catch (error) {
         console.log(error);
     }
@@ -21,7 +21,7 @@ async function testRedis() {
 async function testDB() {
     let db;
     try {
-        db = new DB();
+        db = new DB({});
     } catch (error) {
         console.log(error);
     }
@@ -34,7 +34,7 @@ async function testDB() {
 async function testFetchFromRedis(key) {
     let db;
     try{
-        db = new DB();
+        db = new DB({});
         const rows = await db.fecthFromRedis({key, num: 10});
         for(let row of rows) {
             console.log(JSON.stringify(row))

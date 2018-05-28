@@ -80,7 +80,7 @@ class DB {
             num -= this.redisLimit;
         }
 
-        console.log(`actually find from ${key}: ${num} urls`);
+        console.log(`actually find from ${key}: ${ret.length} urls`);
         return ret;
     }
 
