@@ -8,8 +8,8 @@ global.Promise = require("bluebird");
 
 const DB = require('./db');
 const { env } = require('./env');
-const { config,redisConfig } = require('./config');
-const { delay, formatDateTime} = require('./utils');
+const { config } = require('./config');
+const { delay } = require('./utils');
 
 const writeFile = Promise.promisify(fs.writeFile);
 const chmod = Promise.promisify(fs.chmod);
@@ -31,7 +31,6 @@ async function writeJson({firstSeen, round, seq, data}) {
 }
 
 async function writeJS({data, firstSeen, round, scriptId, url}) {
-    // TODO accessdb
     if (!url || url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?')) {
        return;
     }
@@ -149,15 +148,17 @@ async function newTab(item, timeout, waitTime) {
             const callbackArray = new Array();
             const paramsArray = new Array();      
             const sessions = new Set();
-            const requestsMap = new Map();
 
-            const {Debugger, Network, Target, Profiler} = client;
+            const { Debugger, Network, Target, Profiler, Runtime } = client;
             
             await Promise.all([
                 Debugger.enable(),
                 Network.enable({maxTotalBufferSize: 10000000, maxResourceBufferSize: 5000000}),
                 Profiler.enable(),
+                Runtime.enable()
             ]);
+
+            await Runtime.evaluate({expression: "Object.defineProperty(navigator, 'hardwareConcurrency', {enumerable: true, get: function() { return 8;} } );"});
 
             await Target.setAutoAttach({autoAttach: true, waitForDebuggerOnStart: false}); 
             
@@ -213,12 +214,14 @@ async function newTab(item, timeout, waitTime) {
                     });
                 }
             });
+
             Target.detachedFromTarget((obj) => {
                 if (obj.sessionId !== undefined) {
                     console.log(`detached: ${obj.sessionId}`);
                     sessions.delete(obj.sessionId);
                 }
             });
+            
             Target.receivedMessageFromTarget(async (obj)=>{
                 const message = JSON.parse(obj.message);
                 let callback, others;
@@ -251,7 +254,9 @@ async function newTab(item, timeout, waitTime) {
                     delete callbackArray[message.id];
                 }
             });
+
             await delay(waitTime);
+            
             if(websockets.size !== 0) {
                 await Promise.map(Array.from(websockets), async([requestId, websocket])=>{
                     await db.finishTimeSpaceHistory({
@@ -265,10 +270,9 @@ async function newTab(item, timeout, waitTime) {
                     });
                 });
             }
+
             let pSessions = Array.from(sessions);
-            if (pSessions.length > 8) {
-                pSessions = pSessions.slice(0, 8);
-            }
+            
             await Promise.all([
                 (async()=>{
                     /* profile the main thread */
@@ -298,8 +302,9 @@ async function newTab(item, timeout, waitTime) {
                     }, {concurrency: 8});
                  })()
             ]);
+
             await Promise.all([
-                db.updateTimeSpaceUrls({id: id, threads: sessions.size+1}),
+                db.updateTimeSpaceUrls({id: id, threads: sessions.size + 1}),
                 new Promise(async (resolve, reject)=>{
                     let count = 0;
                     while (total <= sessions.size && count < 10) {
@@ -309,6 +314,7 @@ async function newTab(item, timeout, waitTime) {
                     resolve();                
                 })
             ]);
+            
             await CDP.Close({
                 host: config.host,
                 port: config.port,
@@ -363,7 +369,7 @@ async function main() {
         const {interval, timeout, waitTime, num} = program;
         /* run */
         console.log('************ begin! ************');
-        db = new DB(num, 300);
+        db = new DB({dlimit: 150});
         const rows = await db.fecthFromRedis({key: 'timespace', num})
         //const rows = [{id: 1621940, url: 'https://browsermine.com/', firstSeen: 0, round:0}];
         for (let row of rows) {
