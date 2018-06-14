@@ -87,7 +87,7 @@ async function newTab(item, timeout, waitTime) {
             const requestsMap = new Map();
             const wsFrames = new Array();
 
-            const { Debugger, Network, Target, Page, Profiler } = client;
+            const { Debugger, Network, Target, Page, Profiler, Runtime } = client;
 
             await Promise.all([
                 Debugger.enable(),
@@ -96,12 +96,15 @@ async function newTab(item, timeout, waitTime) {
                     maxResourceBufferSize: 5000000
                 }),
                 Page.enable(),
-                Profiler.enable()
+                Profiler.enable(),
+                Runtime.enable()
             ]);
 
             await Page.addScriptToEvaluateOnNewDocument({
                 source:"Object.defineProperty(navigator, 'hardwareConcurrency', {enumerable: true, get: function() { return 4;} } );"
             });
+
+            await Runtime.evaluate({expression: "Object.defineProperty(navigator, 'hardwareConcurrency', {enumerable: true, get: function() { return 4;} } );"});
 
             await Target.setAutoAttach({
                 autoAttach: true,
