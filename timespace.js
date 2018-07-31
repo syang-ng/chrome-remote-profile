@@ -30,6 +30,21 @@ async function writeJson({firstSeen, round, seq, data}) {
     return;
 }
 
+async function writeResponse({data, firstSeen, round, url}){
+    // base64 encode url
+    const name = Buffer.from(url).toString('base64');
+    const path = `${config.dst}/${firstSeen}/${round}/${name}`;
+    try {
+        await writeFile(path, JSON.stringify(data));
+        const stat = fs.statSync(path);
+        if (stat.uid === process.getuid()) {
+            await chmod(path, '666')
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
 async function writeJS({data, firstSeen, round, scriptId, url}) {
     if (!url || url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.css') || url.endsWith('.svg') ||url.startsWith('data:image') || url.includes('.css?') || url.includes('.png?')|| url.includes('.gif?')|| url.includes('.jpg?')) {
        return;
@@ -94,11 +109,12 @@ const rcvDebuggerGetScriptSource = async function(data, others) {
     await writeJS({data, firstSeen, round, scriptId, url});
 }
 
-const rcvNetworkGetResponseBody = function(data, others) {
+const rcvNetworkGetResponseBody = async function(data, others) {
     if (!data || data.length === 0) {
         return;
     }
-    // const {id, url} = others; // await writeJS(data, id, url);
+    const {firstSeen, round, url} = others;
+    await writeResponse({data, firstSeen, round, url});
 }
 
 const rcvProfileStop = async function({firstSeen, round, seq, data}) {
@@ -145,6 +161,7 @@ async function newTab(item, timeout, waitTime) {
             let seq = 1;
             let total = 1;
             let websockets = new Map();
+            const requestUrlMap = new Map();
             const callbackArray = new Array();
             const paramsArray = new Array();      
             const sessions = new Set();
@@ -173,11 +190,18 @@ async function newTab(item, timeout, waitTime) {
 
             Network.requestWillBeSent(async ({requestId, request, initiator}) => {
                 const sourceUrl = request.url;
+                requestUrlMap.set(requestId, sourceUrl);
                 await rcvNetworkRequestWillBeSent({id, url, initiator, sourceUrl, requestId});
             });
 
             Network.responseReceived(async ({requestId, response})=>{
                 await rcvNetworkResponseReceived({id, url, response, requestId});
+                const sourceUrl = requestUrlMap.get(requestId);
+                let {body, base64Encoded} = await Network.getResponseBody(requestId);
+                if(base64Encoded){
+                    body = Buffer.from(body, 'base64').toString();
+                }
+                await rcvNetworkGetResponseBody(body, {firstSeen, round, url:sourceUrl});
             });
 
             Network.webSocketCreated(({url, initiator, requestId})=>{
@@ -237,10 +261,18 @@ async function newTab(item, timeout, waitTime) {
                     if(callback === rcvNetworkRequestWillBeSent) {
                         const {initiator, request, requestId} = message.params;
                         const sourceUrl = request.url;
+                        requestUrlMap.set(requestId, sourceUrl);
                         await callback({id, url, initiator, sourceUrl});
                     } else if (callback === rcvNetworkResponseReceived) {
-                        const {response, requestId} = message.params;                        
-                        await callback({id, url, requestId, response})
+                        const {response, requestId} = message.params;
+                        callbackArray[seq] = rcvNetworkGetResponseBody;
+                        const sourceUrl = requestUrlMap.get(requestId);
+                        paramsArray[seq] = {url: sourceUrl, firstSeen, round};
+                        Target.sendMessageToTarget({
+                            message: JSON.stringify({id: seq++, method:"Network.getResponseBody", params:{requestId}}),
+                            sessionId: obj.sessionId
+                        });                    
+                        await callback({id, url, requestId, response});
                     }
                 } else if(message.id !== undefined) {
                     callback = callbackArray[message.id];
@@ -250,7 +282,15 @@ async function newTab(item, timeout, waitTime) {
                         others = paramsArray[message.id];                        
                         await callback(message.result.scriptSource, others);
                         delete paramsArray[message.id];
-                    } 
+                    } else if(callback === rcvNetworkResponseReceived){
+                        others = paramsArray[message.id];                        
+                        let {body, base64Encoded} = message.result;
+                        if(base64Encoded){
+                            body = Buffer.from(body, 'base64').toString();
+                        }
+                        await callback(body, others);
+                        delete paramsArray[message.id];
+                    }
                     delete callbackArray[message.id];
                 }
             });
@@ -371,7 +411,6 @@ async function main() {
         console.log('************ begin! ************');
         db = new DB({dlimit: 150});
         const rows = await db.fecthFromRedis({key: 'timespace', num})
-        //const rows = [{id: 1621940, url: 'https://browsermine.com/', firstSeen: 0, round:0}];
         for (let row of rows) {
             try {
                 console.log(row);

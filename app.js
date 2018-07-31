@@ -30,12 +30,31 @@ async function writeJson({id, seq, data}) {
     }
 }
 
+async function writeResponse({id, url, data}){
+    // base64 encode url
+    const name = Buffer.from(url).toString('base64');
+    const path = `${config.dst}/file/${id}/${name}`;
+    try {
+        await writeFile(path, JSON.stringify(data));
+        const stat = fs.statSync(path);
+        if (stat.uid === process.getuid()) {
+            await chmod(path, '666')
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
 const rcvNetworkRequestWillBeSent = async function({id, url, initiator, sourceUrl, requestId}) {
     return;
 }
 
-const rcvNetworkResponseReceived = async function({id, url, response, requestId}) {
-    return;
+const rcvNetworkGetResponseBody = async function(data, others) {
+    if (!data || data.length === 0) {
+        return;
+    }
+    const {id, url} = others;
+    await writeResponse({id, url, data});
 }
 
 const rcvProfileStop = async function ({id, seq, data}) {
@@ -84,7 +103,7 @@ async function newTab(item, timeout, waitTime) {
             const callbackArray = new Array();
             const paramsArray = new Array();      
             const sessions = new Set();
-            const requestsMap = new Map();
+            const requestUrlMap = new Map();
             const wsFrames = new Array();
 
             const { Debugger, Network, Target, Page, Profiler, Runtime } = client;
@@ -111,13 +130,20 @@ async function newTab(item, timeout, waitTime) {
                 waitForDebuggerOnStart: false
             });
 
-            Network.requestWillBeSent(async ({requestId, request, initiator}) => {
+            Network.requestWillBeSent(async ({requestId, request, initiator, }) => {
                 const sourceUrl = request.url;
+                requestUrlMap.set(requestId, sourceUrl);
                 await rcvNetworkRequestWillBeSent({id, url, initiator, sourceUrl, requestId});
             });
 
             Network.responseReceived(async ({requestId, response})=>{
+                const sourceUrl = requestUrlMap.get(requestId);
+                let {body, base64Encoded} = await Network.getResponseBody(requestId);
+                if(base64Encoded){
+                    body = Buffer.from(body, 'base64').toString();
+                }
                 await rcvNetworkResponseReceived({id, url, response, requestId});
+                await rcvNetworkGetResponseBody(body, {id, url:sourceUrl});
             });
 
             Network.webSocketCreated(({url, initiator, requestId})=>{
@@ -161,16 +187,40 @@ async function newTab(item, timeout, waitTime) {
                 }
             });
 
-            Target.receivedMessageFromTarget(async (obj) => {
+            Target.receivedMessageFromTarget(async (obj)=>{
                 const message = JSON.parse(obj.message);
                 let callback, others;
-                if (message.method === 'Debugger.scriptParsed') {    
+                if (message.method === 'Debugger.scriptParsed') {
                 } else if (message.method !== undefined) {
                     callback = callbackMap.get(message.method);
-                } else if (message.id !== undefined) {
+                    if(callback === rcvNetworkRequestWillBeSent) {
+                        const {initiator, request, requestId} = message.params;
+                        const sourceUrl = request.url;
+                        requestUrlMap.set(requestId, sourceUrl);
+                        await callback({id, url, initiator, sourceUrl});
+                    } else if (callback === rcvNetworkResponseReceived) {
+                        const {response, requestId} = message.params;
+                        callbackArray[seq] = rcvNetworkGetResponseBody;
+                        const sourceUrl = requestUrlMap.get(requestId);
+                        paramsArray[seq] = {url: sourceUrl, id};
+                        Target.sendMessageToTarget({
+                            message: JSON.stringify({id: seq++, method:"Network.getResponseBody", params:{requestId}}),
+                            sessionId: obj.sessionId
+                        });                    
+                        await callback({id, url, requestId, response});
+                    }
+                } else if(message.id !== undefined) {
                     callback = callbackArray[message.id];
-                    if (callback === rcvProfileStop) {
+                    if (callback === rcvProfileStop){
                         await callback({id, seq: total++, data: message.result.profile});
+                    } else if(callback === rcvNetworkResponseReceived){
+                        others = paramsArray[message.id];                        
+                        let {body, base64Encoded} = message.result;
+                        if(base64Encoded){
+                            body = Buffer.from(body, 'base64').toString();
+                        }
+                        await callback(body, others);
+                        delete paramsArray[message.id];
                     }
                     delete callbackArray[message.id];
                 }

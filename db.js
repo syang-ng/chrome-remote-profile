@@ -27,6 +27,17 @@ class DB {
         await this.pool.end();
     }
 
+    /* select */
+    async select(sql) {
+        try {          
+            const [row] = await this.pool.query(sql);    
+            return row;
+        } catch (err) {
+            console.error(err);
+            return [];
+        }
+    }
+
     async startProfile({id}) {
         const timestamp = formatDateTime(new Date());
         const sql = `UPDATE \`profilerUrl\` SET status=3, finishTimeStamp="${timestamp}" WHERE id = ${id}`;
