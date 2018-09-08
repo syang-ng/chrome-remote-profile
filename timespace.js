@@ -31,8 +31,8 @@ async function writeJson({firstSeen, round, seq, data}) {
 }
 
 async function writeResponse({data, firstSeen, round, url}){
-    // base64 encode url
-    const name = Buffer.from(url).toString('base64');
+    // hex encode url
+    const name = Buffer.from(url).toString('hex').substring(0, 254);
     const path = `${config.dst}/${firstSeen}/${round}/${name}`;
     try {
         await writeFile(path, JSON.stringify(data));
@@ -196,8 +196,8 @@ async function newTab(item, timeout, waitTime) {
 
             Network.responseReceived(async ({requestId, response})=>{
                 await rcvNetworkResponseReceived({id, url, response, requestId});
-                const sourceUrl = requestUrlMap.get(requestId);
-                let {body, base64Encoded} = await Network.getResponseBody(requestId);
+                const sourceUrl = response.url;
+                let {body, base64Encoded} = await Network.getResponseBody({requestId});
                 if(base64Encoded){
                     body = Buffer.from(body, 'base64').toString();
                 }
@@ -266,7 +266,7 @@ async function newTab(item, timeout, waitTime) {
                     } else if (callback === rcvNetworkResponseReceived) {
                         const {response, requestId} = message.params;
                         callbackArray[seq] = rcvNetworkGetResponseBody;
-                        const sourceUrl = requestUrlMap.get(requestId);
+                        const sourceUrl = response.url;
                         paramsArray[seq] = {url: sourceUrl, firstSeen, round};
                         Target.sendMessageToTarget({
                             message: JSON.stringify({id: seq++, method:"Network.getResponseBody", params:{requestId}}),

@@ -31,8 +31,8 @@ async function writeJson({id, seq, data}) {
 }
 
 async function writeResponse({id, url, data}){
-    // base64 encode url
-    const name = Buffer.from(url).toString('base64');
+    //  hex encode url
+    const name = Buffer.from(url).toString('hex').substring(0, 254);
     const path = `${config.dst}/file/${id}/${name}`;
     try {
         await writeFile(path, JSON.stringify(data));
@@ -55,6 +55,10 @@ const rcvNetworkGetResponseBody = async function(data, others) {
     }
     const {id, url} = others;
     await writeResponse({id, url, data});
+}
+
+const rcvNetworkResponseReceived = async function({id, url, response, requestId}) {
+    return;
 }
 
 const rcvProfileStop = async function ({id, seq, data}) {
@@ -81,6 +85,9 @@ async function newTab(item, timeout, waitTime) {
     const url = encodeURI(item.url);
     const id = item.id;
     await db.startProfile({id});
+    if (!fs.existsSync(`${config.dst}/file/${id}`)) {
+        fs.mkdirSync(`${config.dst}/file/${id}`);
+    }
     try {
         // new tab
         const target = await CDP.New({
@@ -137,8 +144,8 @@ async function newTab(item, timeout, waitTime) {
             });
 
             Network.responseReceived(async ({requestId, response})=>{
-                const sourceUrl = requestUrlMap.get(requestId);
-                let {body, base64Encoded} = await Network.getResponseBody(requestId);
+                const sourceUrl = response.url;
+                let {body, base64Encoded} = await Network.getResponseBody({requestId});
                 if(base64Encoded){
                     body = Buffer.from(body, 'base64').toString();
                 }
@@ -201,7 +208,7 @@ async function newTab(item, timeout, waitTime) {
                     } else if (callback === rcvNetworkResponseReceived) {
                         const {response, requestId} = message.params;
                         callbackArray[seq] = rcvNetworkGetResponseBody;
-                        const sourceUrl = requestUrlMap.get(requestId);
+                        const sourceUrl = response.url;
                         paramsArray[seq] = {url: sourceUrl, id};
                         Target.sendMessageToTarget({
                             message: JSON.stringify({id: seq++, method:"Network.getResponseBody", params:{requestId}}),
@@ -339,7 +346,6 @@ async function main() {
         console.log("App run at %s", formatDateTime(new Date()));
         console.log(`want to fetch ${num} urls`);
         const rows = await db.fecthFromRedis({key: 'to_profile', num});
-        // const rows = [{id: 1621940, url: 'https://browsermine.com/'}];
         console.log(`actually fetch ${rows.length} urls`);
         if (rows.length === 0) {
             return;            
